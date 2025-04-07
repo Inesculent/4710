@@ -1,4 +1,3 @@
-
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -19,6 +18,9 @@ public class Main {
         System.out.println(isAdmin(1234));
 
     }
+
+
+    public List<String>
 
 
     //Check to see if the user already exists in our db

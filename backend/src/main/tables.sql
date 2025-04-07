@@ -58,6 +58,14 @@ CREATE TABLE private_events(
     FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE
 );
 
+--This is for user access to an event
+CREATE TABLE user_access(
+    event_id INT,
+    user_id INT,
+    FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(uid) ON DELETE CASCADE
+);
+
 CREATE TABLE rso(
     rso_id INT PRIMARY KEY AUTO_INCREMENT,
     rso_name VARCHAR(255),
