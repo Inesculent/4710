@@ -11,7 +11,9 @@ public class Main {
 
         //Add whatever testing you want here
     }
+    
 
+    //Function for a superadmin to approve an event
     public static boolean approveEvent(int eventId, int userId){
 
         //If the user isn't a superadmin
@@ -36,6 +38,8 @@ public class Main {
 
     }
 
+
+    //Function to add a new comment to our DB
     public static boolean addComment(int event_id, int user_id, String text, int rating, Timestamp date){
 
         String sql = "INSERT INTO comments (event_id, user_id, text, rating, timestamp) VALUES (?, ?, ?, ?, ?)";
@@ -59,6 +63,9 @@ public class Main {
         }
     }
 
+
+
+    //Returns a list of comments based on whatever event we're indexing
     public static List<Comment> getComments(int event_id){
 
         List<Comment> comments = new ArrayList<>();
@@ -131,7 +138,7 @@ public class Main {
             try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
                 if (generatedKeys.next()) {
                     eventId = generatedKeys.getInt(1);
-                    event.setEventId(eventId); // update the event object if needed
+                    event.setEventId(eventId);
                 } else {
                     conn.rollback();
                     return 0;
@@ -143,12 +150,13 @@ public class Main {
                 String tableName = "private_events";
                 String sqlInsertType = "INSERT INTO private_events (event_id, owner_id) VALUES (?, ?)";
                 try (PreparedStatement psType = conn.prepareStatement(sqlInsertType)) {
-                    psType.setInt(1, eventId); // use the generated event_id
+                    psType.setInt(1, eventId);
                     psType.setInt(2, ownerId);
                     psType.executeUpdate();
                 }
             }
 
+            //For public events, we set the approved to true if it's a super admin, otherwise false
             if (eventType.equalsIgnoreCase("public")){
                 boolean approved = isSuperAdmin(ownerId);
                 String sqlInsertType = "INSERT INTO public_events (event_id, owner_id, approved) VALUES (?, ?, ?)";
@@ -190,6 +198,8 @@ public class Main {
         }
     }
 
+
+    //Deletes an event based on the event's ID
     public static boolean deleteEvent(int eventId){
 
         String sql = "DELETE FROM events WHERE event_id = ?";
@@ -242,10 +252,10 @@ public class Main {
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             if (!isSuperAdmin(userId)){
-                // Set parameters for the UNION query: one for public/private and one for RSO events
-                stmt.setInt(1, userId); // For public_events: owner condition
-                stmt.setInt(2, userId); // For private_events: owner condition
-                stmt.setInt(3, userId); // For rso_events: user membership condition
+                //Set parameters for the UNION query; one for public/private and one for RSO events
+                stmt.setInt(1, userId); //public events
+                stmt.setInt(2, userId); //private events
+                stmt.setInt(3, userId); //rso events (if member)
             }
 
             try (ResultSet rs = stmt.executeQuery()) {
@@ -281,7 +291,6 @@ public class Main {
         private Timestamp endDate;
         private int addressId;
 
-        // Constructors, getters, and setters
         public Event() {}
 
         public Event(int eventId, String title, String description, Timestamp startDate, Timestamp endDate, int addressId) {
@@ -406,7 +415,7 @@ public class Main {
     }
 
 
-    //Check to see if the user already exists in our db
+    //Check to see if the user already exists in our db based on user ID
     public static boolean existsUser(int uid){
 
         String query = "SELECT COUNT(*) FROM users WHERE uid = ?";
@@ -430,6 +439,8 @@ public class Main {
         return false;
     }
 
+
+    //To validate a user when they attempt to sign in, communicates with frontend to return true or false
     public static boolean validateUser(String email, String password){
 
         String sql = "SELECT COUNT(*) FROM users WHERE email = ? AND password = ?";
