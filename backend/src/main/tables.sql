@@ -39,7 +39,9 @@ CREATE TABLE comments(
     user_id INT,
     text TEXT,
     rating INT,
-    timestamp DATETIME
+    timestamp DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(uid) ON DELETE CASCADE,
+    FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE
 );
 
 CREATE TABLE public_events(

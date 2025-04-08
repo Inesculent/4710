@@ -9,21 +9,7 @@ public class Main {
 
     public static void main(String[] args) {
 
-
-
-
-        createUser("user2", "cat", "haha@ucf.edu", 123, "admin");
-
-        System.out.println(approveEvent(8, 2025));
-
-        List<Event> arr = getEvents(123);
-
-        for (Event e: arr){
-            System.out.println(e.toString());
-        }
-
-
-
+        //Add whatever testing you want here
     }
 
     public static boolean approveEvent(int eventId, int userId){
@@ -42,18 +28,75 @@ public class Main {
             int affectedRows = stmt.executeUpdate();
 
             return affectedRows > 0;
-        } catch (SQLException e) {
+        }
+        catch (SQLException e) {
             e.printStackTrace();
             return false;
         }
 
     }
 
+    public static boolean addComment(int event_id, int user_id, String text, int rating, Timestamp date){
+
+        String sql = "INSERT INTO comments (event_id, user_id, text, rating, timestamp) VALUES (?, ?, ?, ?, ?)";
+
+        try (Connection conn = DriverManager.getConnection(url, user, pw);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, event_id);
+            stmt.setInt(2, user_id);
+            stmt.setString(3, text);
+            stmt.setInt(4, rating);
+            stmt.setTimestamp(5, date);
+
+            int rowsAffected = stmt.executeUpdate();
+            return rowsAffected > 0;
+
+        }
+        catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public static List<Comment> getComments(int event_id){
+
+        List<Comment> comments = new ArrayList<>();
+        String sql = "SELECT * FROM comments WHERE event_id = ?";
+
+        try (Connection conn = DriverManager.getConnection(url, user, pw);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, event_id);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+
+                    //Set all the variables (for easier readability)
+                    int eid = rs.getInt("event_id");
+                    int uid = rs.getInt("user_id");
+                    String text = rs.getString("text");
+                    int rating = rs.getInt("rating");
+                    Timestamp t = rs.getTimestamp("timestamp");
+
+                    Comment comment = new Comment(eid, uid, text, rating,t);
+
+                    //Add the new comment
+                    comments.add(comment);
+                }
+            }
+        }
+        catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return comments;
+    }
+
     //Code -1 = no permission
     //Code 0 = failed
     //Code 1 = success
     public static int createEvent(Event event, int ownerId, String eventType) {
-
 
         //If there aren't permissions to create an event
         if (!isAdmin(ownerId) && !isSuperAdmin(ownerId)){
@@ -66,9 +109,9 @@ public class Main {
 
         try {
             conn = DriverManager.getConnection(url, user, pw);
-            conn.setAutoCommit(false); // start transaction
+            conn.setAutoCommit(false);
 
-            // Insert into events table and retrieve generated keys.
+            //Insert into events table and retrieve generated keys.
             String sqlInsertEvent = "INSERT INTO events (title, description, start_date, end_date, address_id) VALUES (?, ?, ?, ?, ?)";
             ps = conn.prepareStatement(sqlInsertEvent, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, event.getTitle());
@@ -83,7 +126,7 @@ public class Main {
                 return 0;
             }
 
-            // Retrieve the auto-generated event_id.
+            //Retrieve the auto-generated event_id.
             int eventId;
             try (ResultSet generatedKeys = ps.getGeneratedKeys()) {
                 if (generatedKeys.next()) {
@@ -95,7 +138,7 @@ public class Main {
                 }
             }
 
-            // For private events, we don't need super admin approval
+            //For private events, we don't need super admin approval
             if (eventType.equalsIgnoreCase("private")) {
                 String tableName = "private_events";
                 String sqlInsertType = "INSERT INTO private_events (event_id, owner_id) VALUES (?, ?)";
@@ -111,7 +154,7 @@ public class Main {
                 String sqlInsertType = "INSERT INTO public_events (event_id, owner_id, approved) VALUES (?, ?, ?)";
 
                 try (PreparedStatement psType = conn.prepareStatement(sqlInsertType)) {
-                    psType.setInt(1, eventId); // use the generated event_id
+                    psType.setInt(1, eventId);
                     psType.setInt(2, ownerId);
                     psType.setBoolean(3, approved);
                     psType.executeUpdate();
@@ -119,7 +162,8 @@ public class Main {
             }
             conn.commit();
             return 1;
-        } catch (SQLException e) {
+        }
+        catch (SQLException e) {
             e.printStackTrace();
             if (conn != null) {
                 try {
@@ -129,7 +173,8 @@ public class Main {
                 }
             }
             return 0;
-        } finally {
+        }
+        finally {
             try {
                 if (ps != null) {
                     ps.close();
@@ -138,7 +183,8 @@ public class Main {
                     conn.setAutoCommit(true);
                     conn.close();
                 }
-            } catch (SQLException e) {
+            }
+            catch (SQLException e) {
                 e.printStackTrace();
             }
         }
@@ -156,7 +202,8 @@ public class Main {
             int rowsDeleted = state.executeUpdate();
             return rowsDeleted > 0;
 
-        } catch (SQLException e){
+        }
+        catch (SQLException e){
             e.printStackTrace();
             return false;
         }
@@ -169,10 +216,11 @@ public class Main {
         String sql;
         List<Event> events = new ArrayList<>();
 
-        if (isSuperAdmin(userId)) {
+        if (isSuperAdmin(userId)){
             // For superadmins, return all events (without a specific event type)
             sql = "SELECT *, '' AS eventType FROM events";
-        } else {
+        }
+        else{
             sql = "SELECT e.*, 'public' AS eventType " +
                     "FROM events e " +
                     "JOIN public_events pe ON e.event_id = pe.event_id " +
@@ -193,7 +241,7 @@ public class Main {
         try (Connection conn = DriverManager.getConnection(url, user, pw);
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            if (!isSuperAdmin(userId)) {
+            if (!isSuperAdmin(userId)){
                 // Set parameters for the UNION query: one for public/private and one for RSO events
                 stmt.setInt(1, userId); // For public_events: owner condition
                 stmt.setInt(2, userId); // For private_events: owner condition
@@ -213,7 +261,8 @@ public class Main {
                     events.add(event);
                 }
             }
-        } catch (SQLException e) {
+        }
+        catch (SQLException e) {
             e.printStackTrace();
         }
 
@@ -313,6 +362,49 @@ public class Main {
         }
     }
 
+    public static class Comment{
+
+        private int event_id;
+        private int user_id;
+        private String text;
+        private int rating;
+        private Timestamp timestamp;
+
+
+        public Comment(int event_id, int user_id, String text, int rating, Timestamp timestamp){
+            this.event_id = event_id;
+            this.user_id = user_id;
+            this.text = text;
+            this.rating = rating;
+            this.timestamp = timestamp;
+        }
+
+        @Override
+        public String toString(){
+
+            return "Comment {"+ " event_id " + event_id + " user_id " + user_id + "\n text" + text + "\n rating" + rating + "\n timestamp" + timestamp;
+        }
+
+        public int getEventId(){
+            return event_id;
+        }
+
+        public int getUserId(){
+            return user_id;
+        }
+
+        public String getText(){
+            return text;
+        }
+
+        public int getRating(){
+            return rating;
+        }
+        public Timestamp getTimestamp(){
+            return timestamp;
+        }
+    }
+
 
     //Check to see if the user already exists in our db
     public static boolean existsUser(int uid){
@@ -333,6 +425,29 @@ public class Main {
         catch (SQLException e) {
             e.printStackTrace();
             return false;
+        }
+
+        return false;
+    }
+
+    public static boolean validateUser(String email, String password){
+
+        String sql = "SELECT COUNT(*) FROM users WHERE email = ? AND password = ?";
+        try (Connection conn = DriverManager.getConnection(url, user, pw);
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, email);
+            stmt.setString(2, password);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    int count = rs.getInt(1);
+                    return count > 0; // returns true if a matching record exists, false otherwise.
+                }
+            }
+        }
+        catch (SQLException e){
+            e.printStackTrace();
         }
 
         return false;
@@ -438,7 +553,8 @@ public class Main {
             System.out.println("User created successfully.");
             return true;
 
-        } catch (SQLException e) {
+        }
+        catch (SQLException e) {
             e.printStackTrace();
             return false;
         }
