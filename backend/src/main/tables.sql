@@ -103,60 +103,62 @@ CREATE TABLE user_rso(
 
 
 -- Trigger for rso being active
+DELIMITER //
 
 CREATE TRIGGER rso_checker_update
 AFTER UPDATE ON user_rso
 FOR EACH ROW
-    BEGIN
-        DECLARE ed VARCHAR(255);
-        DECLARE user_count INT;
+BEGIN
+    DECLARE ed VARCHAR(255);
+    DECLARE user_count INT;
 
-        SELECT email_domain INTO ed
-        FROM rso
-        WHERE rso_id = NEW.rso_id;
+    SELECT email_domain INTO ed
+    FROM rso
+    WHERE rso_id = NEW.rso_id;
 
-        SELECT COUNT(*) INTO user_count
-        FROM user_rso ur
-        JOIN users u ON u.uid = ur.uid
-        WHERE ur.rso_id = NEW.rso_id AND u.email LIKE CONCAT('%', ed);
+    SELECT COUNT(*) INTO user_count
+    FROM user_rso ur
+    JOIN users u ON u.uid = ur.user_id
+    WHERE ur.rso_id = NEW.rso_id AND u.email LIKE CONCAT('%', ed);
 
-        IF user_count >= 5 THEN
+    IF user_count >= 5 THEN
         UPDATE rso SET is_active = TRUE WHERE rso_id = NEW.rso_id;
-        ELSE
+    ELSE
         UPDATE rso SET is_active = FALSE WHERE rso_id = NEW.rso_id;
-        END IF;
-END;
+    END IF;
+END //
 
+DELIMITER ;
 
-DELIMITER $$
+DELIMITER //
 CREATE TRIGGER rso_checker_add
-    AFTER INSERT ON user_rso
-    FOR EACH ROW
-        BEGIN
-        DECLARE ed VARCHAR(255);
-        DECLARE user_count INT;
+AFTER INSERT ON user_rso
+FOR EACH ROW
+BEGIN
+    DECLARE ed VARCHAR(255);
+    DECLARE user_count INT;
 
-        SELECT email_domain INTO ed
-        FROM rso
-        WHERE rso_id = NEW.rso_id;
+    SELECT email_domain INTO ed
+    FROM rso
+    WHERE rso_id = NEW.rso_id;
 
-        SELECT COUNT(*) INTO user_count
-        FROM user_rso ur
-                 JOIN users u ON u.uid = ur.uid
-        WHERE ur.rso_id = NEW.rso_id AND u.email LIKE CONCAT('%', ed);
+    SELECT COUNT(*) INTO user_count
+    FROM user_rso ur
+    JOIN users u ON u.uid = ur.user_id
+    WHERE ur.rso_id = NEW.rso_id AND u.email LIKE CONCAT('%', ed);
 
-        IF user_count >= 5 THEN
+    IF user_count >= 5 THEN
         UPDATE rso SET is_active = TRUE WHERE rso_id = NEW.rso_id;
-        ELSE
+    ELSE
         UPDATE rso SET is_active = FALSE WHERE rso_id = NEW.rso_id;
-        END IF;
-        END$$
+    END IF;
+END //
+DELIMITER ;
 
-
-DELIMITER $$
+DELIMITER //
 CREATE TRIGGER rso_checker_delete
-    AFTER DELETE ON user_rso
-    FOR EACH ROW
+AFTER DELETE ON user_rso
+FOR EACH ROW
 BEGIN
     DECLARE ed VARCHAR(255);
     DECLARE user_count INT;
@@ -167,14 +169,15 @@ BEGIN
 
     SELECT COUNT(*) INTO user_count
     FROM user_rso ur
-             JOIN users u ON u.uid = ur.uid
+    JOIN users u ON u.uid = ur.user_id
     WHERE ur.rso_id = OLD.rso_id AND u.email LIKE CONCAT('%', ed);
 
     IF user_count >= 5 THEN
-    UPDATE rso SET is_active = TRUE WHERE rso_id = OLD.rso_id;
+        UPDATE rso SET is_active = TRUE WHERE rso_id = OLD.rso_id;
     ELSE
-    UPDATE rso SET is_active = FALSE WHERE rso_id = OLD.rso_id;
-END IF;
-END$$
+        UPDATE rso SET is_active = FALSE WHERE rso_id = OLD.rso_id;
+    END IF;
+END //
+DELIMITER ;
 
 
