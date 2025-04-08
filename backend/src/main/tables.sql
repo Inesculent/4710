@@ -1,7 +1,9 @@
 CREATE TABLE users(
     uid INT PRIMARY KEY,
     name VARCHAR(255),
-    email VARCHAR(255)
+    email VARCHAR(255),
+    password VARCHAR(255),
+
 );
 
 CREATE TABLE admin(
@@ -17,12 +19,8 @@ CREATE TABLE super_admin(
 
 CREATE TABLE addresses (
     address_id INT PRIMARY KEY AUTO_INCREMENT,
-    building VARCHAR(255),
-    city VARCHAR(255),
-    zipcode VARCHAR(50),
-    state VARCHAR(50),
-    country_code VARCHAR(10),
-    country_name VARCHAR(100)
+    latitude DECIMAL(10, 8),
+    longitude DECIMAL(11, 8)
 );
 
 CREATE TABLE events(
@@ -32,7 +30,7 @@ CREATE TABLE events(
     start_date DATETIME,
     end_date DATETIME,
     address_id INT,
-    FOREIGN KEY (address_id) REFERENCES addresses(address_id)
+    FOREIGN KEY (address_id) REFERENCES addresses(address_id) ON DELETE CASCADE
 );
 
 
@@ -45,10 +43,11 @@ CREATE TABLE comments(
 );
 
 CREATE TABLE public_events(
+    approved BOOLEAN,
     event_id INT PRIMARY KEY,
     owner_id INT,
     FOREIGN KEY (owner_id) REFERENCES users(uid) ON DELETE CASCADE,
-    FOREIGN KEY (event_id) REFERENCES events(event_id)
+    FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE
 );
 
 CREATE TABLE private_events(
