@@ -27,6 +27,7 @@
             <artifactId>spring-boot-starter-jdbc</artifactId>
             <version>3.4.4</version>
         </dependency>
+        <!-- MySQL JDBC Driver -->
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
