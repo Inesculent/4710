@@ -12,17 +12,36 @@ import java.util.List;
 public class MainController {
 
     @PostMapping("/approveEvent")
-    public boolean approveEvent(@RequestParam int eventId, @RequestParam int userId) {
+    public boolean approveEvent(
+            @RequestParam String email,
+            @RequestParam String password,
+            @RequestParam int eventId) {
+
+        int userId = Main.validateUser(email, password);
+
+        if (userId < 0){
+            return false;
+        }
+
+
         return Main.approveEvent(eventId, userId);
     }
 
     @PostMapping("/addComment")
     public boolean addComment(
+            @RequestParam String email,
+            @RequestParam String password,
             @RequestParam int eventId,
-            @RequestParam int userId,
             @RequestParam String text,
             @RequestParam int rating,
             @RequestParam String date) {
+
+        int userId = Main.validateUser(email, password);
+
+        if (userId < 0){
+            return false;
+        }
+
         Timestamp timestamp = Timestamp.valueOf(date);
         return Main.addComment(eventId, userId, text, rating, timestamp);
     }
@@ -34,10 +53,26 @@ public class MainController {
 
     @PostMapping("/createEvent")
     public int createEvent(
+
             @RequestBody Main.Event event,
-            @RequestParam int ownerId,
-            @RequestParam String eventType) {
-        return Main.createEvent(event, ownerId, eventType);
+            @RequestParam String email,
+            @RequestParam String password,
+            @RequestParam int university_id,
+            @RequestParam String eventType,
+            @RequestParam double longitude,
+            @RequestParam double latitude,
+            @RequestParam int rso_id
+
+
+
+    )
+    {
+        int ownerId = Main.validateUser(email, password);
+
+        if (ownerId < 0){
+            return -1;
+        }
+        return Main.createEvent(event, ownerId, university_id, eventType, longitude, latitude, rso_id);
     }
 
     @DeleteMapping("/deleteEvent")
@@ -46,27 +81,35 @@ public class MainController {
     }
 
     @GetMapping("/getEvents")
-    public List<Main.Event> getEvents(@RequestParam int userId) {
+    public List<Main.Event> getEvents(@RequestParam String email, @RequestParam String password) {
+
+        int userId = Main.validateUser(email, password);
+
+        if (userId < 0){
+            return null;
+        }
+
         return Main.getEvents(userId);
     }
 
     @GetMapping("/existsUser")
-    public boolean existsUser(@RequestParam int uid) {
-        return Main.existsUser(uid);
+    public boolean existsUser(@RequestParam String email) {
+        return Main.existsUser(email);
     }
 
+    //If greater than 0, then we validated
     @PostMapping("/validateUser")
-    public boolean validateUser(@RequestParam String email, @RequestParam String password) {
+    public int validateUser(@RequestParam String email, @RequestParam String password) {
         return Main.validateUser(email, password);
     }
 
     @PostMapping("/createUser")
-    public boolean createUser(
+    public int createUser(
             @RequestParam String userType,
             @RequestParam String name,
             @RequestParam String email,
-            @RequestParam int uid,
-            @RequestParam String password) {
-        return Main.createUser(userType, name, email, uid, password);
+            @RequestParam String password,
+            @RequestParam int universityId) {
+        return Main.createUser(userType, name, email, password, universityId);
     }
 }

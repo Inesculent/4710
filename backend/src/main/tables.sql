@@ -1,13 +1,29 @@
 CREATE TABLE users(
-    uid INT PRIMARY KEY,
+    uid INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(255),
-    email VARCHAR(255),
-    password VARCHAR(255),
+    email VARCHAR(255) UNIQUE,
+    password VARCHAR(255)
+);
 
+
+CREATE TABLE university(
+    university_id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(50),
+    students INT,
+    description TEXT
+);
+
+CREATE TABLE student(
+    uid INT PRIMARY KEY AUTO_INCREMENT,
+    university_id INT,
+    FOREIGN KEY (university_id) REFERENCES university(university_id),
+    FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
 );
 
 CREATE TABLE admin(
     uid INT PRIMARY KEY,
+    university_id INT,
+    FOREIGN KEY (university_id) REFERENCES university(university_id),
     FOREIGN KEY (uid) REFERENCES users(uid) ON DELETE CASCADE
 );
 
@@ -17,21 +33,27 @@ CREATE TABLE super_admin(
 );
 
 
-CREATE TABLE addresses (
-    address_id INT PRIMARY KEY AUTO_INCREMENT,
-    latitude DECIMAL(10, 8),
-    longitude DECIMAL(11, 8)
+
+CREATE TABLE locations (
+    locID INT PRIMARY KEY AUTO_INCREMENT,
+    longitude REAL,
+    latitude REAL
 );
+
 
 CREATE TABLE events(
     event_id INT PRIMARY KEY AUTO_INCREMENT,
     title VARCHAR(255),
     description TEXT,
-    start_date DATETIME,
-    end_date DATETIME,
-    address_id INT,
-    FOREIGN KEY (address_id) REFERENCES addresses(address_id) ON DELETE CASCADE
+    date DATE,
+    start TIME,
+    end TIME,
+    locID INT,
+    university_id INT,
+    FOREIGN KEY (university_id) REFERENCES university(university_id),
+    FOREIGN KEY (locID) REFERENCES locations(locID) ON DELETE CASCADE
 );
+
 
 
 CREATE TABLE comments(
@@ -41,7 +63,8 @@ CREATE TABLE comments(
     rating INT,
     timestamp DATETIME,
     FOREIGN KEY (user_id) REFERENCES users(uid) ON DELETE CASCADE,
-    FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE
+    FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE,
+    CHECK (rating >= 1 AND rating <= 5)
 );
 
 CREATE TABLE public_events(
@@ -59,7 +82,7 @@ CREATE TABLE private_events(
     FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE
 );
 
---This is for user access to an event
+
 CREATE TABLE user_access(
     event_id INT,
     user_id INT,
@@ -69,9 +92,9 @@ CREATE TABLE user_access(
 
 CREATE TABLE rso(
     rso_id INT PRIMARY KEY AUTO_INCREMENT,
-    rso_name VARCHAR(255),
+    rso_name VARCHAR(255) UNIQUE,
     description TEXT,
-    university VARCHAR(255),
+    universityID INT,
     admin_email VARCHAR(255),
     email_domain VARCHAR(255),
     is_active BOOLEAN DEFAULT FALSE
@@ -94,15 +117,7 @@ CREATE TABLE user_rso(
 );
 
 
---Rule Rso needs 5 people minimum
 
---SUBSTRING('taylor.finch@ucf.edu', LOCATE('@', 'taylor.finch@ucf.edu'))
-
-
-
-
-
--- Trigger for rso being active
 DELIMITER //
 
 CREATE TRIGGER rso_checker_update
@@ -180,4 +195,22 @@ BEGIN
 END //
 DELIMITER ;
 
+DELIMITER $$
+
+CREATE TRIGGER before_events_insert
+    BEFORE INSERT ON events
+    FOR EACH ROW
+BEGIN
+    IF EXISTS(
+        SELECT 1
+        FROM events e
+        WHERE e.locID = NEW.locID
+          AND e.date = NEW.date
+          AND ( (NEW.start < e.end) AND (NEW.end > e.start) )
+    )THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Overlapping event exists at this location and date.';
+END IF;
+END$$
+DELIMITER ;
 
