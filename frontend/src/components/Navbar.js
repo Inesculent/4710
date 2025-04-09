@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   AppBar, Box, Toolbar, Typography, Button, IconButton, 
   Menu, MenuItem, Avatar, Dialog, DialogTitle, 
@@ -6,6 +6,7 @@ import {
   InputLabel, Select
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 function Navbar() {
@@ -17,6 +18,7 @@ function Navbar() {
   const [roleSelectorOpen, setRoleSelectorOpen] = useState(false);
   
   // Form state
+  const [universities, setUniversities] = useState([]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -24,6 +26,21 @@ function Navbar() {
   const [selectedRole, setSelectedRole] = useState(userRole);
   const [error, setError] = useState('');
   
+
+  useEffect(() => {
+    const fetchUniversities = async () => {
+      try {
+        const response = await api.universities.getAll();
+        console.log(response);
+        setUniversities(response.universities);
+      } catch (error) {
+        console.error('Error fetching universities:', error);
+      }
+    };
+    fetchUniversities();
+  }, []);
+
+
   const handleMenu = (event) => {
     setAnchorEl(event.currentTarget);
   };
@@ -82,13 +99,15 @@ function Navbar() {
     e.preventDefault();
     setError('');
     
-    if (!email.endsWith('@knights.ucf.edu')) {
-      setError('Please use a university email address (@knights.ucf.edu)');
-      return;
-    }
-    
     try {
-      await register(email, password, displayName, universityId);
+      const userData = {
+        username: displayName,
+        password: password,
+        email: email,
+        role: 'student', // Default role for new users
+        universityId: universityId
+      };
+      await register(userData);
       handleRegisterDialogClose();
     } catch (error) {
       setError('Failed to register: ' + error.message);
@@ -119,13 +138,8 @@ function Navbar() {
     handleClose();
     navigate('/rsos');
   };
-
-  // Demo users for easy login
-  const demoUsers = [
-    { email: 'student1@knights.ucf.edu', password: 'password', role: 'Student' },
-    { email: 'admin1@knights.ucf.edu', password: 'password', role: 'Admin' },
-    { email: 'superadmin@knights.ucf.edu', password: 'password', role: 'Super Admin' }
-  ];
+  
+  console.log(universities);
 
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -255,25 +269,6 @@ function Navbar() {
                 sx: { color: 'rgba(255, 255, 255, 0.7)' }
               }}
             />
-            <Typography variant="body2" sx={{ mt: 2, mb: 1 }}>
-              Demo Users (for testing):
-            </Typography>
-            <Box sx={{ mb: 2 }}>
-              {demoUsers.map((user, index) => (
-                <Button 
-                  key={index}
-                  variant="outlined" 
-                  size="small"
-                  sx={{ mr: 1, mb: 1 }}
-                  onClick={() => {
-                    setEmail(user.email);
-                    setPassword(user.password);
-                  }}
-                >
-                  {user.role}
-                </Button>
-              ))}
-            </Box>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -321,7 +316,7 @@ function Navbar() {
               margin="normal"
               required
               fullWidth
-              label="Email Address (@knights.ucf.edu)"
+              label="Email Address"
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -359,8 +354,11 @@ function Navbar() {
                 onChange={(e) => setUniversityId(e.target.value)}
                 sx={{ backgroundColor: '#161a1e', color: 'white' }}
               >
-                <MenuItem value={1}>University of Central Florida</MenuItem>
-                <MenuItem value={2}>Florida State University</MenuItem>
+                {universities?.map((university) => (
+                  <MenuItem key={university.id} value={university.name}>
+                    {university.name}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Box>

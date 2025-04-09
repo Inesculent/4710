@@ -14,11 +14,16 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     // Check for saved user in localStorage (for persistence between refreshes)
-    const savedUser = localStorage.getItem('currentUser');
+    const savedUser = localStorage.getItem('user');
     if (savedUser) {
-      const user = JSON.parse(savedUser);
-      setCurrentUser(user);
-      setUserRole(user.role);
+      try {
+        const user = JSON.parse(savedUser);
+        setCurrentUser(user);
+        setUserRole(user.isAdmin ? 'admin' : user.isSuperAdmin ? 'superadmin' : 'student');
+      } catch (error) {
+        console.error("Error parsing saved user:", error);
+        localStorage.removeItem('user');
+      }
     }
     setLoading(false);
   }, []);
@@ -26,10 +31,23 @@ export function AuthProvider({ children }) {
   // Login function
   const login = async (email, password) => {
     try {
-      const user = await api.auth.login(email, password);
+      const data = await api.auth.login(email, password);
+      const user = data.user;
       setCurrentUser(user);
-      setUserRole(user.role);
-      localStorage.setItem('currentUser', JSON.stringify(user));
+      
+      // Set role based on admin status
+      let role = 'student';
+      if (user.isSuperAdmin) {
+        role = 'superadmin';
+      } else if (user.isAdmin) {
+        role = 'admin';
+      }
+      
+      setUserRole(role);
+      localStorage.setItem('user', JSON.stringify(user));
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
       return user;
     } catch (error) {
       console.error("Login error:", error);
@@ -38,13 +56,11 @@ export function AuthProvider({ children }) {
   };
 
   // Register function
-  const register = async (email, password, displayName, universityId) => {
+  const register = async (userData) => {
     try {
-      const user = await api.auth.register(email, password, displayName, universityId);
-      setCurrentUser(user);
-      setUserRole(user.role);
-      localStorage.setItem('currentUser', JSON.stringify(user));
-      return user;
+      const data = await api.auth.register(userData);
+      // After registration, log in with the new credentials
+      return await login(userData.email, userData.password);
     } catch (error) {
       console.error("Register error:", error);
       throw error;
@@ -53,20 +69,27 @@ export function AuthProvider({ children }) {
 
   // Logout function
   const logout = () => {
+    api.auth.logout();
     setCurrentUser(null);
     setUserRole('student');
-    localStorage.removeItem('currentUser');
   };
 
-  // Change role (for demo purposes)
+  // Change role (this would need API support in a real app)
   const changeRole = async (newRole) => {
     if (!currentUser) return;
     
     try {
-      const updatedUser = await api.auth.setUserRole(currentUser.uid, newRole);
+      // This would require backend support to change roles
+      // For now, we'll just update the UI
+      const updatedUser = {
+        ...currentUser,
+        isAdmin: newRole === 'admin',
+        isSuperAdmin: newRole === 'superadmin'
+      };
+      
       setCurrentUser(updatedUser);
-      setUserRole(updatedUser.role);
-      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      setUserRole(newRole);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
       return updatedUser;
     } catch (error) {
       console.error("Change role error:", error);

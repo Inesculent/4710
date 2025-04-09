@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Container, Typography, Box, Grid, Card, CardContent, CardMedia, 
   CardActions, Button, Chip, FormControl, InputLabel, Select, MenuItem,
-  TextField, InputAdornment, IconButton, CircularProgress
+  TextField, InputAdornment, IconButton, CircularProgress, Alert
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
@@ -25,16 +25,15 @@ function Events() {
     const fetchEvents = async () => {
       try {
         setLoading(true);
-        let fetchedEvents;
+        setError('');
+        let fetchedEvents = [];
         
         if (currentUser) {
           // Fetch events that this user can see
-          fetchedEvents = await api.events.getVisibleEvents(currentUser.uid);
+          fetchedEvents = await api.events.getUserEvents(currentUser.userId);
         } else {
           // If not logged in, only show public events
-          fetchedEvents = await api.events.getAll();
-          // Add null check before filtering
-          fetchedEvents = fetchedEvents.filter(event => event && event.type === 'public');
+          fetchedEvents = await api.events.getPublic();
         }
         
         setEvents(fetchedEvents || []);
@@ -58,12 +57,17 @@ function Events() {
     }
     
     try {
-      await api.events.joinEvent(eventId, currentUser.uid);
-      // Update UI to show the user is now attending
-      alert('You have successfully joined this event!');
+      setLoading(true);
+      await api.events.joinEvent(eventId, currentUser.userId);
+      // Refresh events to update UI
+      const updatedEvents = await api.events.getUserEvents(currentUser.userId);
+      setEvents(updatedEvents);
+      setError('');
     } catch (err) {
       console.error('Error joining event:', err);
       setError('Failed to join event. Please try again later.');
+    } finally {
+      setLoading(false);
     }
   };
   
@@ -76,7 +80,7 @@ function Events() {
     const matchesSearch = 
       event.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       event.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      event.location_name?.toLowerCase().includes(searchTerm.toLowerCase());
+      event.locationName?.toLowerCase().includes(searchTerm.toLowerCase());
     
     // Filter by event type
     const matchesType = 
@@ -105,9 +109,9 @@ function Events() {
       </Typography>
       
       {error && (
-        <Typography color="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
           {error}
-        </Typography>
+        </Alert>
       )}
       
       {/* Search and Filter Controls */}
@@ -191,13 +195,13 @@ function Events() {
                   <CardMedia
                     component="img"
                     height="160"
-                    image={event.imageUrl}
+                    image={event.imageUrl || 'https://source.unsplash.com/random?campus'}
                     alt={event.title}
                   />
                   <CardContent sx={{ flexGrow: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                       <Chip 
-                        label={event.type.charAt(0).toUpperCase() + event.type.slice(1)} 
+                        label={event.type?.charAt(0).toUpperCase() + event.type?.slice(1) || 'Unknown'} 
                         size="small" 
                         color={
                           event.type === 'public' 
@@ -209,7 +213,7 @@ function Events() {
                         sx={{ mr: 1 }}
                       />
                       <Chip 
-                        label={event.category.charAt(0).toUpperCase() + event.category.slice(1)} 
+                        label={event.category?.charAt(0).toUpperCase() + event.category?.slice(1) || 'General'} 
                         size="small" 
                         variant="outlined"
                       />
@@ -225,10 +229,10 @@ function Events() {
                       <strong>Date:</strong> {formatDate(event.date)}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                      <strong>Time:</strong> {event.time}
+                      <strong>Time:</strong> {event.startTime || event.time || 'TBD'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                      <strong>Location:</strong> {event.location_name}
+                      <strong>Location:</strong> {event.locationName || 'TBD'}
                     </Typography>
                   </CardContent>
                   <CardActions>

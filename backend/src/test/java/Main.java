@@ -3,9 +3,9 @@ import java.sql.*;
 
 public class Main {
 
-    static final String url = "jdbc:mysql://localhost:3306/database1";
+    static final String url = "jdbc:mysql://localhost:8889/college_events";
     static final String user = "root";
-    static final String pw = "SuperSecure!";
+    static final String pw = "root";
 
     public static void main(String[] args) {
 

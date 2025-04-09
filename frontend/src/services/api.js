@@ -1,561 +1,405 @@
-// Mock data for our API service
-// These would be retrieved from our backend server in a real application
+// API Service for making requests to the backend
+import axios from 'axios';
 
-// Users (Students)
-const users = [
-  {
-    uid: 1,
-    email: 'student1@knights.ucf.edu',
-    displayName: 'John Student',
-    university_id: 1,
-    role: 'student',
-    photoURL: 'https://i.pravatar.cc/300?img=1'
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080/api';
+
+// Create axios instance
+const axiosInstance = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
   },
-  {
-    uid: 2,
-    email: 'admin1@knights.ucf.edu',
-    displayName: 'Jane Admin',
-    university_id: 1,
-    role: 'admin',
-    photoURL: 'https://i.pravatar.cc/300?img=5'
+});
+
+// Add authorization header if user is logged in
+axiosInstance.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
   },
-  {
-    uid: 3,
-    email: 'superadmin@knights.ucf.edu',
-    displayName: 'Sam SuperAdmin',
-    university_id: 1,
-    role: 'superadmin',
-    photoURL: 'https://i.pravatar.cc/300?img=8'
+  (error) => {
+    return Promise.reject(error);
   }
-];
+);
 
-// Locations
-const locations = [
-  {
-    lname: 'Computer Science Building',
-    address: '123 University Blvd, Orlando, FL 32816',
-    longitude: -81.2001,
-    latitude: 28.6018
+// Auth services
+const auth = {
+  login: async (email, password) => {
+    try {
+      const response = await axiosInstance.post('/users/validate', { email, password });
+      return response.data;
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
   },
-  {
-    lname: 'Student Union',
-    address: '456 University Blvd, Orlando, FL 32816',
-    longitude: -81.2050,
-    latitude: 28.6020
+  
+  register: async (userData) => {
+    try {
+      const response = await axiosInstance.post('/users/create', userData);
+      return response.data;
+    } catch (error) {
+      console.error('Registration error:', error);
+      throw error;
+    }
   },
-  {
-    lname: 'Main Campus Quad',
-    address: 'University of Central Florida, Orlando, FL 32816',
-    longitude: -81.2030,
-    latitude: 28.6015
+  
+  logout: () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
   }
-];
+};
 
-// Universities
-const universities = [
-  {
-    id: 1,
-    name: 'University of Central Florida',
-    location: 'Orlando, FL',
-    description: 'UCF is a public research university with the largest university campus by enrollment in Florida.',
-    studentCount: 70000,
-    pictures: [
-      'https://images.unsplash.com/photo-1587068415117-b49abac631a7?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80'
-    ]
+// User services
+const users = {
+  getProfile: async (userId) => {
+    try {
+      const response = await axiosInstance.get(`/users/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get profile error:', error);
+      throw error;
+    }
   },
-  {
-    id: 2,
-    name: 'Florida State University',
-    location: 'Tallahassee, FL',
-    description: 'FSU is a public research university offering bachelor\'s, master\'s, and doctoral degrees.',
-    studentCount: 45000,
-    pictures: [
-      'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80'
-    ]
+  
+  updateProfile: async (userId, profileData) => {
+    try {
+      const response = await axiosInstance.put(`/users/${userId}`, profileData);
+      return response.data;
+    } catch (error) {
+      console.error('Update profile error:', error);
+      throw error;
+    }
   }
-];
+};
 
-// RSOs
-const rsos = [
-  { 
-    id: 1, 
-    name: 'Computer Science Club', 
-    description: 'A club for computer science students interested in programming and technology.',
-    university_id: 1,
-    memberCount: 25,
-    active: true,
-    admin_id: 2 // admin user
+// University services
+const universities = {
+  getAll: async () => {
+    try {
+      const response = await axiosInstance.get('/universities/all');
+      return response.data;
+    } catch (error) {
+      console.error('Get universities error:', error);
+      throw error;
+    }
   },
-  { 
-    id: 2, 
-    name: 'Chess Club', 
-    description: 'Weekly meetings for chess enthusiasts of all skill levels.',
-    university_id: 1,
-    memberCount: 15,
-    active: true,
-    admin_id: 2 // admin user
+  
+  getById: async (uniId) => {
+    try {
+      const response = await axiosInstance.get(`/universities/${uniId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Get university ${uniId} error:`, error);
+      throw error;
+    }
+  },
+  
+  create: async (universityData) => {
+    try {
+      const response = await axiosInstance.post('/universities', universityData);
+      return response.data;
+    } catch (error) {
+      console.error('Create university error:', error);
+      throw error;
+    }
   }
-];
+};
 
-// RSO Memberships
-const rsoMemberships = [
-  { rso_id: 1, user_id: 1 },
-  { rso_id: 2, user_id: 1 },
-  { rso_id: 1, user_id: 2 },
-  { rso_id: 2, user_id: 2 }
-];
-
-// Events (base class)
-const events = [
-  {
-    id: 1,
-    title: 'Tech Talk: AI and Ethics',
-    description: 'Join us for a discussion on artificial intelligence ethics and implications.',
-    date: '2025-04-15',
-    time: '15:00',
-    location_name: 'Computer Science Building',
-    category: 'tech',
-    type: 'public', // public, private, or rso
-    university_id: 1,
-    rso_id: null,
-    contact_phone: '(407) 123-4567',
-    contact_email: 'techevent@knights.ucf.edu',
-    imageUrl: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
-    averageRating: 4.2,
-    created_by: 3, // superadmin
-    approved_by: 3 // self-approved for superadmin
+// Event services
+const events = {
+  getAll: async () => {
+    try {
+      const response = await axiosInstance.get('/events');
+      return response.data;
+    } catch (error) {
+      console.error('Get all events error:', error);
+      throw error;
+    }
   },
-  {
-    id: 2,
-    title: 'Annual Spring Concert',
-    description: 'Come enjoy live music and food at our annual spring concert.',
-    date: '2025-04-20',
-    time: '18:00',
-    location_name: 'Main Campus Quad',
-    category: 'social',
-    type: 'private',
-    university_id: 1,
-    rso_id: null,
-    contact_phone: '(407) 123-4567',
-    contact_email: 'events@knights.ucf.edu',
-    imageUrl: 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
-    averageRating: 4.0,
-    created_by: 2, // admin
-    approved_by: 3 // superadmin must approve private events
+  
+  getPublic: async () => {
+    try {
+      const response = await axiosInstance.get('/events/public');
+      return response.data;
+    } catch (error) {
+      console.error('Get public events error:', error);
+      throw error;
+    }
   },
-  {
-    id: 3,
-    title: 'Chess Club Tournament',
-    description: 'Join our RSO for the semesterly chess tournament.',
-    date: '2025-04-25',
-    time: '13:00',
-    location_name: 'Student Union',
-    category: 'social',
-    type: 'rso',
-    university_id: 1,
-    rso_id: 2, // Chess Club
-    contact_phone: '(407) 123-4567',
-    contact_email: 'chessclub@knights.ucf.edu',
-    imageUrl: 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
-    averageRating: 4.5,
-    created_by: 2, // admin who owns the RSO
-    approved_by: null // RSO events don't need approval
+  
+  getByUniversity: async (uniId) => {
+    try {
+      const response = await axiosInstance.get(`/events/university/${uniId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Get events for university ${uniId} error:`, error);
+      throw error;
+    }
+  },
+  
+  getByRSO: async (rsoId) => {
+    try {
+      const response = await axiosInstance.get(`/events/rso/${rsoId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Get events for RSO ${rsoId} error:`, error);
+      throw error;
+    }
+  },
+  
+  getUserEvents: async (userId) => {
+    try {
+      const response = await axiosInstance.get(`/events/user/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Get events for user ${userId} error:`, error);
+      throw error;
+    }
+  },
+  
+  getById: async (eventId) => {
+    try {
+      const response = await axiosInstance.get(`/events/${eventId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Get event ${eventId} error:`, error);
+      throw error;
+    }
+  },
+  
+  create: async (eventData) => {
+    try {
+      const response = await axiosInstance.post('/events/create', eventData);
+      return response.data;
+    } catch (error) {
+      console.error('Create event error:', error);
+      throw error;
+    }
+  },
+  
+  update: async (eventId, eventData) => {
+    try {
+      const response = await axiosInstance.put(`/events/${eventId}`, eventData);
+      return response.data;
+    } catch (error) {
+      console.error(`Update event ${eventId} error:`, error);
+      throw error;
+    }
+  },
+  
+  delete: async (eventId) => {
+    try {
+      const response = await axiosInstance.delete(`/events/${eventId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Delete event ${eventId} error:`, error);
+      throw error;
+    }
+  },
+  
+  approve: async (eventId, adminId) => {
+    try {
+      const response = await axiosInstance.post(`/events/${eventId}/approve`, { adminId });
+      return response.data;
+    } catch (error) {
+      console.error(`Approve event ${eventId} error:`, error);
+      throw error;
+    }
+  },
+  
+  joinEvent: async (eventId, userId) => {
+    try {
+      const response = await axiosInstance.post(`/events/${eventId}/join`, { userId });
+      return response.data;
+    } catch (error) {
+      console.error(`Join event ${eventId} error:`, error);
+      throw error;
+    }
+  },
+  
+  leaveEvent: async (eventId, userId) => {
+    try {
+      const response = await axiosInstance.delete(`/events/${eventId}/users/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Leave event ${eventId} error:`, error);
+      throw error;
+    }
   }
-];
+};
 
-// Event Attendees (Users who joined events)
-const eventAttendees = [
-  { event_id: 1, user_id: 1 },
-  { event_id: 2, user_id: 1 },
-  { event_id: 3, user_id: 1 },
-  { event_id: 1, user_id: 2 }
-];
-
-// Comments
-const comments = [
-  {
-    id: 1,
-    event_id: 1,
-    user_id: 1,
-    text: 'Excited for this event! Looking forward to learning about AI ethics.',
-    rating: 5,
-    timestamp: '2025-03-18T10:24:00Z',
-    likes: 5
+// RSO services
+const rsos = {
+  getAll: async () => {
+    try {
+      const response = await axiosInstance.get('/rsos');
+      return response.data;
+    } catch (error) {
+      console.error('Get all RSOs error:', error);
+      throw error;
+    }
   },
-  {
-    id: 2,
-    event_id: 1,
-    user_id: 2,
-    text: 'Will there be a Q&A session at the end?',
-    rating: 4,
-    timestamp: '2025-03-19T15:30:00Z',
-    likes: 2
+  
+  getByUniversity: async (uniId) => {
+    try {
+      const response = await axiosInstance.get(`/rsos/university/${uniId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Get RSOs for university ${uniId} error:`, error);
+      throw error;
+    }
+  },
+  
+  getUserRsos: async (userId) => {
+    try {
+      const response = await axiosInstance.get(`/rsos/user/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Get RSOs for user ${userId} error:`, error);
+      throw error;
+    }
+  },
+  
+  getById: async (rsoId) => {
+    try {
+      const response = await axiosInstance.get(`/rsos/${rsoId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Get RSO ${rsoId} error:`, error);
+      throw error;
+    }
+  },
+  
+  create: async (rsoData) => {
+    try {
+      const response = await axiosInstance.post('/rsos/create', rsoData);
+      return response.data;
+    } catch (error) {
+      console.error('Create RSO error:', error);
+      throw error;
+    }
+  },
+  
+  update: async (rsoId, rsoData) => {
+    try {
+      const response = await axiosInstance.put(`/rsos/${rsoId}`, rsoData);
+      return response.data;
+    } catch (error) {
+      console.error(`Update RSO ${rsoId} error:`, error);
+      throw error;
+    }
+  },
+  
+  delete: async (rsoId) => {
+    try {
+      const response = await axiosInstance.delete(`/rsos/${rsoId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Delete RSO ${rsoId} error:`, error);
+      throw error;
+    }
+  },
+  
+  join: async (rsoId, userId) => {
+    try {
+      const response = await axiosInstance.post(`/rsos/${rsoId}/join`, { userId });
+      return response.data;
+    } catch (error) {
+      console.error(`Join RSO ${rsoId} error:`, error);
+      throw error;
+    }
+  },
+  
+  leave: async (rsoId, userId) => {
+    try {
+      const response = await axiosInstance.delete(`/rsos/${rsoId}/users/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Leave RSO ${rsoId} error:`, error);
+      throw error;
+    }
   }
-];
+};
 
-// Mock API functions
+// Comment services
+const comments = {
+  getByEvent: async (eventId) => {
+    try {
+      const response = await axiosInstance.get(`/comments/event/${eventId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Get comments for event ${eventId} error:`, error);
+      throw error;
+    }
+  },
+  
+  add: async (commentData) => {
+    try {
+      const response = await axiosInstance.post('/comments/add', commentData);
+      return response.data;
+    } catch (error) {
+      console.error('Add comment error:', error);
+      throw error;
+    }
+  },
+  
+  delete: async (commentId) => {
+    try {
+      const response = await axiosInstance.delete(`/comments/${commentId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Delete comment ${commentId} error:`, error);
+      throw error;
+    }
+  }
+};
+
+// Location services
+const locations = {
+  getAll: async () => {
+    try {
+      const response = await axiosInstance.get('/locations');
+      return response.data;
+    } catch (error) {
+      console.error('Get all locations error:', error);
+      throw error;
+    }
+  },
+  
+  getById: async (locationId) => {
+    try {
+      const response = await axiosInstance.get(`/locations/${locationId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Get location ${locationId} error:`, error);
+      throw error;
+    }
+  },
+  
+  create: async (locationData) => {
+    try {
+      const response = await axiosInstance.post('/locations', locationData);
+      return response.data;
+    } catch (error) {
+      console.error('Create location error:', error);
+      throw error;
+    }
+  }
+};
+
+// Export all api services
 const api = {
-  // Auth functions
-  auth: {
-    login: async (email, password) => {
-      // In a real app, this would make a POST request to the server
-      const user = users.find(u => u.email === email);
-      if (user) {
-        return user;
-      }
-      throw new Error('Invalid email or password');
-    },
-
-    register: async (email, password, displayName, universityId) => {
-      // In a real app, this would make a POST request to the server
-      const newUser = {
-        uid: users.length + 1,
-        email,
-        displayName,
-        university_id: universityId,
-        role: 'student',
-        photoURL: `https://i.pravatar.cc/300?img=${Math.floor(Math.random() * 70)}`
-      };
-      users.push(newUser);
-      return newUser;
-    },
-
-    // For demo purposes - allows easy role switching
-    setUserRole: async (uid, newRole) => {
-      const user = users.find(u => u.uid === uid);
-      if (user) {
-        user.role = newRole;
-        return user;
-      }
-      throw new Error('User not found');
-    }
-  },
-
-  // University functions
-  universities: {
-    getAll: async () => {
-      return universities;
-    },
-
-    getById: async (id) => {
-      const university = universities.find(u => u.id === id);
-      if (university) {
-        return university;
-      }
-      throw new Error('University not found');
-    },
-
-    create: async (universityData) => {
-      const newUniversity = {
-        id: universities.length + 1,
-        ...universityData
-      };
-      universities.push(newUniversity);
-      return newUniversity;
-    },
-
-    update: async (id, universityData) => {
-      const index = universities.findIndex(u => u.id === id);
-      if (index !== -1) {
-        universities[index] = { ...universities[index], ...universityData };
-        return universities[index];
-      }
-      throw new Error('University not found');
-    },
-
-    delete: async (id) => {
-      const index = universities.findIndex(u => u.id === id);
-      if (index !== -1) {
-        universities.splice(index, 1);
-        return true;
-      }
-      throw new Error('University not found');
-    }
-  },
-
-  // RSO functions
-  rsos: {
-    getAll: async () => {
-      return rsos;
-    },
-
-    getByUniversity: async (universityId) => {
-      return rsos.filter(r => r.university_id === universityId);
-    },
-
-    getUserRsos: async (userId) => {
-      const membershipIds = rsoMemberships
-        .filter(m => m.user_id === userId)
-        .map(m => m.rso_id);
-      return rsos.filter(r => membershipIds.includes(r.id));
-    },
-
-    create: async (rsoData, members) => {
-      const newRso = {
-        id: rsos.length + 1,
-        ...rsoData,
-        memberCount: members.length + 1 // +1 for admin
-      };
-      rsos.push(newRso);
-      
-      // Add memberships
-      rsoMemberships.push({ rso_id: newRso.id, user_id: rsoData.admin_id });
-      members.forEach(userId => {
-        rsoMemberships.push({ rso_id: newRso.id, user_id: userId });
-      });
-      
-      return newRso;
-    },
-
-    join: async (rsoId, userId) => {
-      // Check if already a member
-      const existingMembership = rsoMemberships.find(
-        m => m.rso_id === rsoId && m.user_id === userId
-      );
-      if (existingMembership) {
-        throw new Error('Already a member of this RSO');
-      }
-      
-      // Add membership
-      rsoMemberships.push({ rso_id: rsoId, user_id: userId });
-      
-      // Update member count
-      const rso = rsos.find(r => r.id === rsoId);
-      if (rso) {
-        rso.memberCount += 1;
-      }
-      
-      return true;
-    },
-
-    leave: async (rsoId, userId) => {
-      // Find and remove membership
-      const membershipIndex = rsoMemberships.findIndex(
-        m => m.rso_id === rsoId && m.user_id === userId
-      );
-      if (membershipIndex !== -1) {
-        rsoMemberships.splice(membershipIndex, 1);
-        
-        // Update member count
-        const rso = rsos.find(r => r.id === rsoId);
-        if (rso) {
-          rso.memberCount -= 1;
-        }
-        
-        return true;
-      }
-      throw new Error('Not a member of this RSO');
-    }
-  },
-
-  // Events functions
-  events: {
-    getAll: async () => {
-      return events;
-    },
-
-    getById: async (id) => {
-      const event = events.find(e => e.id === id);
-      if (event) {
-        return event;
-      }
-      throw new Error('Event not found');
-    },
-
-    // Get events that a user can see
-    getVisibleEvents: async (userId) => {
-      if (!userId) {
-        return events.filter(e => e && e.type === 'public');
-      }
-      
-      const user = users.find(u => u.uid === userId);
-      if (!user) {
-        return events.filter(e => e && e.type === 'public');
-      }
-
-      let visibleEvents = [];
-      
-      // Public events are visible to everyone
-      visibleEvents = events.filter(e => e && e.type === 'public');
-      
-      // Private events are visible to users of the same university
-      const privateEvents = events.filter(e => 
-        e && e.type === 'private' && e.university_id === user.university_id
-      );
-      visibleEvents = [...visibleEvents, ...privateEvents];
-      
-      // RSO events are visible to members of the RSO
-      const userRsos = rsoMemberships
-        .filter(m => m && m.user_id === userId)
-        .map(m => m.rso_id);
-      
-      const rsoEvents = events.filter(e => 
-        e && e.type === 'rso' && userRsos.includes(e.rso_id)
-      );
-      visibleEvents = [...visibleEvents, ...rsoEvents];
-      
-      return visibleEvents;
-    },
-
-    create: async (eventData) => {
-      const newEvent = {
-        id: events.length + 1,
-        ...eventData
-      };
-      events.push(newEvent);
-      return newEvent;
-    },
-
-    update: async (id, eventData) => {
-      const index = events.findIndex(e => e.id === id);
-      if (index !== -1) {
-        events[index] = { ...events[index], ...eventData };
-        return events[index];
-      }
-      throw new Error('Event not found');
-    },
-
-    delete: async (id) => {
-      const index = events.findIndex(e => e.id === id);
-      if (index !== -1) {
-        events.splice(index, 1);
-        return true;
-      }
-      throw new Error('Event not found');
-    },
-
-    // Event attendance
-    joinEvent: async (eventId, userId) => {
-      // Check if already attending
-      const existingAttendance = eventAttendees.find(
-        a => a.event_id === eventId && a.user_id === userId
-      );
-      if (existingAttendance) {
-        throw new Error('Already attending this event');
-      }
-      
-      // Add attendance
-      eventAttendees.push({ event_id: eventId, user_id: userId });
-      return true;
-    },
-
-    leaveEvent: async (eventId, userId) => {
-      // Find and remove attendance
-      const attendanceIndex = eventAttendees.findIndex(
-        a => a.event_id === eventId && a.user_id === userId
-      );
-      if (attendanceIndex !== -1) {
-        eventAttendees.splice(attendanceIndex, 1);
-        return true;
-      }
-      throw new Error('Not attending this event');
-    },
-
-    getUserEvents: async (userId) => {
-      const attendingIds = eventAttendees
-        .filter(a => a.user_id === userId)
-        .map(a => a.event_id);
-      return events.filter(e => attendingIds.includes(e.id));
-    }
-  },
-
-  // Comments & Ratings functions
-  comments: {
-    getByEvent: async (eventId) => {
-      const eventComments = comments.filter(c => c.event_id === eventId);
-      // Join with user data
-      return eventComments.map(comment => {
-        const user = users.find(u => u.uid === comment.user_id);
-        return {
-          ...comment,
-          userName: user ? user.displayName : 'Unknown User',
-          userAvatar: user ? user.photoURL : null
-        };
-      });
-    },
-
-    create: async (commentData) => {
-      const newComment = {
-        id: comments.length + 1,
-        ...commentData,
-        timestamp: new Date().toISOString(),
-        likes: 0
-      };
-      comments.push(newComment);
-      
-      // Update event average rating
-      const eventComments = comments.filter(c => c.event_id === commentData.event_id);
-      const totalRating = eventComments.reduce((sum, c) => sum + c.rating, 0);
-      const avgRating = totalRating / eventComments.length;
-      
-      const event = events.find(e => e.id === commentData.event_id);
-      if (event) {
-        event.averageRating = parseFloat(avgRating.toFixed(1));
-      }
-      
-      return newComment;
-    },
-
-    update: async (id, commentData) => {
-      const index = comments.findIndex(c => c.id === id);
-      if (index !== -1) {
-        comments[index] = { 
-          ...comments[index], 
-          ...commentData,
-          timestamp: new Date().toISOString() + ' (edited)'
-        };
-        return comments[index];
-      }
-      throw new Error('Comment not found');
-    },
-
-    delete: async (id) => {
-      const index = comments.findIndex(c => c.id === id);
-      if (index !== -1) {
-        const deletedComment = comments[index];
-        comments.splice(index, 1);
-        
-        // Update event average rating
-        const eventComments = comments.filter(c => c.event_id === deletedComment.event_id);
-        if (eventComments.length > 0) {
-          const totalRating = eventComments.reduce((sum, c) => sum + c.rating, 0);
-          const avgRating = totalRating / eventComments.length;
-          
-          const event = events.find(e => e.id === deletedComment.event_id);
-          if (event) {
-            event.averageRating = parseFloat(avgRating.toFixed(1));
-          }
-        }
-        
-        return true;
-      }
-      throw new Error('Comment not found');
-    },
-
-    like: async (id) => {
-      const comment = comments.find(c => c.id === id);
-      if (comment) {
-        comment.likes += 1;
-        return comment;
-      }
-      throw new Error('Comment not found');
-    }
-  },
-
-  // Locations
-  locations: {
-    getAll: async () => {
-      return locations;
-    },
-
-    getByName: async (lname) => {
-      const location = locations.find(l => l.lname === lname);
-      if (location) {
-        return location;
-      }
-      throw new Error('Location not found');
-    }
-  }
+  auth,
+  users,
+  universities,
+  events,
+  rsos,
+  comments,
+  locations
 };
 
 export default api; 
