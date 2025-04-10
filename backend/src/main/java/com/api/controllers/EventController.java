@@ -52,6 +52,13 @@ public class EventController {
     @PostMapping("/create")
     public ResponseEntity<Map<String, Object>> createEvent(@RequestBody Map<String, Object> eventData) {
         try {
+            // Log all received data
+            System.out.println("======= CREATE EVENT REQUEST PAYLOAD =======");
+            for (Map.Entry<String, Object> entry : eventData.entrySet()) {
+                System.out.println(entry.getKey() + ": " + entry.getValue());
+            }
+            System.out.println("===========================================");
+            
             String name = (String) eventData.get("name");
             String description = (String) eventData.get("description");
             String time = (String) eventData.get("time");
@@ -84,6 +91,14 @@ public class EventController {
             Location location = new Location();
             location.setLongitude(longitude);
             location.setLatitude(latitude);
+            
+            // Set location description if provided - check both field names for compatibility
+            if (eventData.containsKey("locationDescription")) {
+                location.setDescription((String) eventData.get("locationDescription"));
+            } else if (eventData.containsKey("description")) {
+                location.setDescription((String) eventData.get("description"));
+            }
+            
             location = locationService.createLocation(location);
             
             // Get university
@@ -199,81 +214,135 @@ public class EventController {
         }
     }
     
-    @GetMapping
-    public ResponseEntity<Map<String, Object>> getEvents(
-            @RequestParam(required = false) Integer universityId,
-            @RequestParam(required = false) Integer rsoId,
-            @RequestParam(required = false) String type) {
+    // Get all events
+    @GetMapping("/all")
+    public ResponseEntity<Map<String, Object>> getAllEvents() {
+        List<Event> events = eventService.getAllEvents();
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("events", events);
+        return ResponseEntity.ok(response);
+    }
+
+    // Get all public events for a user
+    @GetMapping("/public/{userId}")
+    public ResponseEntity<Map<String, Object>> getAllPublicUserEvents(@PathVariable int userId) {
+        List<PublicEvent> events = eventService.getAllPublicUserEvents(userId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("events", events);
+        return ResponseEntity.ok(response);
+    }
+
+    // Get all private events for a user
+    @GetMapping("/private/{userId}")
+    public ResponseEntity<Map<String, Object>> getAllPrivateUserEvents(@PathVariable int userId) {
+        List<PrivateEvent> events = eventService.getAllPrivateUserEvents(userId);
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("events", events);
+        return ResponseEntity.ok(response);
+    }
+
+    // Get events by RSO
+    @GetMapping("/rso/{rsoId}")
+    public ResponseEntity<Map<String, Object>> getEventsByRso(@PathVariable int rsoId) {
         try {
-            List<Event> eventsList;
+            // Validate RSO exists
+            Rso rso = rsoService.getRsoById(rsoId)
+                .orElseThrow(() -> new IllegalArgumentException("RSO not found with id: " + rsoId));
             
-            // Get events based on filters
-            if (universityId != null) {
-                eventsList = eventService.getEventsByUniversityId(universityId);
-            } else {
-                eventsList = eventService.getAllEvents();
-            }
+            // Get all RSO events
+            List<RsoEvent> events = eventService.getAllRsoEvents(rsoId);
             
-            // Additional filtering based on type
-            if (type != null && !type.isEmpty()) {
-                eventsList = eventsList.stream()
-                        .filter(event -> {
-                            if ("public".equalsIgnoreCase(type)) {
-                                return event instanceof PublicEvent;
-                            } else if ("private".equalsIgnoreCase(type)) {
-                                return event instanceof PrivateEvent;
-                            } else if ("rso".equalsIgnoreCase(type)) {
-                                return event instanceof RsoEvent;
-                            }
-                            return true;
-                        })
-                        .collect(Collectors.toList());
-            }
+            // Convert to standardized format
+            List<Map<String, Object>> eventsList = events.stream()
+                .map(event -> createEventMap(event, "rso"))
+                .collect(Collectors.toList());
             
-            // RSO filtering
-            if (rsoId != null && rsoId > 0) {
-                // This would require a specialized service method or filtering in-memory
-                eventsList = eventsList.stream()
-                        .filter(event -> event instanceof RsoEvent && 
-                                ((RsoEvent)event).getRso().getRsoId().equals(rsoId))
-                        .collect(Collectors.toList());
-            }
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("events", eventsList);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "Error: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    // Get events by University
+    @GetMapping("/university/{universityId}")
+    public ResponseEntity<Map<String, Object>> getEventsByUniversity(@PathVariable int universityId) {
+        try {
+            // Validate university exists
+            University university = universityService.getUniversityById(universityId)
+                .orElseThrow(() -> new IllegalArgumentException("University not found with id: " + universityId));
             
-            // Convert Event objects to Map for response
-            List<Map<String, Object>> eventsResponse = new ArrayList<>();
-            for (Event event : eventsList) {
-                Map<String, Object> eventMap = new HashMap<>();
-                eventMap.put("id", event.getEventId());
-                eventMap.put("title", event.getTitle());
-                eventMap.put("description", event.getDescription());
-                eventMap.put("date", event.getDate().toString());
-                eventMap.put("startTime", event.getStart().toString());
-                eventMap.put("endTime", event.getEnd().toString());
-                
-                // Add event type
+            // Get events for this university
+            List<Event> events = eventService.getEventsByUniversityId(universityId);
+            
+            // Convert to standardized format
+            List<Map<String, Object>> eventsList = new ArrayList<>();
+            
+            // Process events based on type
+            for (Event event : events) {
+                String eventType = "event";
                 if (event instanceof PublicEvent) {
-                    eventMap.put("type", "public");
-                    eventMap.put("approved", ((PublicEvent)event).getApproved());
+                    eventType = "public";
                 } else if (event instanceof PrivateEvent) {
-                    eventMap.put("type", "private");
+                    eventType = "private";
                 } else if (event instanceof RsoEvent) {
-                    eventMap.put("type", "rso");
-                    eventMap.put("rsoId", ((RsoEvent)event).getRso().getRsoId());
-                    eventMap.put("rsoName", ((RsoEvent)event).getRso().getRsoName());
+                    eventType = "rso";
                 }
                 
-                // Add location info
-                if (event.getLocation() != null) {
-                    eventMap.put("longitude", event.getLocation().getLongitude());
-                    eventMap.put("latitude", event.getLocation().getLatitude());
-                }
-                
-                eventsResponse.add(eventMap);
+                Map<String, Object> eventMap = createEventMap(event, eventType);
+                eventsList.add(eventMap);
             }
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
-            response.put("events", eventsResponse);
+            response.put("events", eventsList);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "Error: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    // Get all events for a user (public and private)
+    @GetMapping("/{userId}")
+    public ResponseEntity<Map<String, Object>> getAllUserEvents(@PathVariable int userId) {
+        try {
+            // Get user
+            User user = userService.getUserById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+            
+            // Get all public and private events for the user
+            List<PublicEvent> publicEvents = eventService.getAllPublicUserEvents(userId);
+            List<PrivateEvent> privateEvents = eventService.getAllPrivateUserEvents(userId);
+            
+            // Combine into a single response
+            List<Map<String, Object>> combinedEvents = new ArrayList<>();
+            
+            // Add public events
+            for (PublicEvent event : publicEvents) {
+                Map<String, Object> eventMap = createEventMap(event, "public");
+                combinedEvents.add(eventMap);
+            }
+            
+            // Add private events
+            for (PrivateEvent event : privateEvents) {
+                Map<String, Object> eventMap = createEventMap(event, "private");
+                combinedEvents.add(eventMap);
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("events", combinedEvents);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
@@ -283,6 +352,182 @@ public class EventController {
         }
     }
     
+    // Get a specific event by ID
+    @GetMapping("/event/{eventId}")
+    public ResponseEntity<Map<String, Object>> getEventById(@PathVariable int eventId) {
+        try {
+            // Get the event
+            Event event = eventService.getEventById(eventId)
+                .orElseThrow(() -> new IllegalArgumentException("Event not found with id: " + eventId));
+            
+            // Determine event type
+            String eventType = "event";
+            if (event instanceof PublicEvent) {
+                eventType = "public";
+            } else if (event instanceof PrivateEvent) {
+                eventType = "private";
+            } else if (event instanceof RsoEvent) {
+                eventType = "rso";
+            }
+            
+            // Create standardized response
+            Map<String, Object> eventMap = createEventMap(event, eventType);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("event", eventMap);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "Error: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+    
+    // Search events by name, description, date range, and type
+    @GetMapping("/search")
+    public ResponseEntity<Map<String, Object>> searchEvents(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) Integer universityId,
+            @RequestParam(required = false) String eventType,
+            @RequestParam(required = false) Double latitude,
+            @RequestParam(required = false) Double longitude,
+            @RequestParam(required = false) Double radius) {
+        
+        try {
+            // Parse dates if provided
+            LocalDate start = null;
+            LocalDate end = null;
+            DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            
+            if (startDate != null && !startDate.isEmpty()) {
+                start = LocalDate.parse(startDate, dateFormatter);
+            }
+            
+            if (endDate != null && !endDate.isEmpty()) {
+                end = LocalDate.parse(endDate, dateFormatter);
+            }
+            
+            // Get university if provided
+            University university = null;
+            if (universityId != null && universityId > 0) {
+                university = universityService.getUniversityById(universityId)
+                    .orElseThrow(() -> new IllegalArgumentException("University not found with id: " + universityId));
+            }
+            
+            // Perform search
+            List<Event> events = eventService.searchEvents(query, start, end, university, eventType);
+            
+            // Filter by location if coordinates and radius provided
+            if (latitude != null && longitude != null && radius != null) {
+                events = events.stream()
+                    .filter(event -> {
+                        if (event.getLocation() == null) return false;
+                        
+                        double eventLat = event.getLocation().getLatitude();
+                        double eventLng = event.getLocation().getLongitude();
+                        
+                        // Calculate distance between points (Haversine formula)
+                        double distance = calculateDistance(latitude, longitude, eventLat, eventLng);
+                        return distance <= radius;
+                    })
+                    .collect(Collectors.toList());
+            }
+            
+            // Convert to standardized format
+            List<Map<String, Object>> eventsList = new ArrayList<>();
+            for (Event event : events) {
+                String type = "event";
+                if (event instanceof PublicEvent) {
+                    type = "public";
+                } else if (event instanceof PrivateEvent) {
+                    type = "private";
+                } else if (event instanceof RsoEvent) {
+                    type = "rso";
+                }
+                
+                Map<String, Object> eventMap = createEventMap(event, type);
+                eventsList.add(eventMap);
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("events", eventsList);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "Error: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+    
+    // Calculate distance between two points using Haversine formula
+    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+        // Earth's radius in kilometers
+        final double EARTH_RADIUS = 6371.0;
+        
+        // Convert degrees to radians
+        double lat1Rad = Math.toRadians(lat1);
+        double lon1Rad = Math.toRadians(lon1);
+        double lat2Rad = Math.toRadians(lat2);
+        double lon2Rad = Math.toRadians(lon2);
+        
+        // Haversine formula
+        double dLat = lat2Rad - lat1Rad;
+        double dLon = lon2Rad - lon1Rad;
+        double a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                   Math.cos(lat1Rad) * Math.cos(lat2Rad) *
+                   Math.sin(dLon/2) * Math.sin(dLon/2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        double distance = EARTH_RADIUS * c;
+        
+        return distance;
+    }
+    
+    // Helper method to create a standardized event map
+    private Map<String, Object> createEventMap(Event event, String eventType) {
+        Map<String, Object> eventMap = new HashMap<>();
+        eventMap.put("id", event.getEventId());
+        eventMap.put("title", event.getTitle());
+        eventMap.put("description", event.getDescription());
+        eventMap.put("date", event.getDate().toString());
+        eventMap.put("startTime", event.getStart().toString());
+        eventMap.put("endTime", event.getEnd().toString());
+        eventMap.put("type", eventType);
+        
+        // Add location info if available
+        if (event.getLocation() != null) {
+            eventMap.put("longitude", event.getLocation().getLongitude());
+            eventMap.put("latitude", event.getLocation().getLatitude());
+            eventMap.put("locationId", event.getLocation().getLocID());
+            eventMap.put("locationDescription", event.getLocation().getDescription());
+        }
+        
+        // Add university info if available
+        if (event.getUniversity() != null) {
+            eventMap.put("universityId", event.getUniversity().getUniversityId());
+            eventMap.put("universityName", event.getUniversity().getName());
+        }
+        
+        // Add event-type specific fields
+        if (event instanceof PublicEvent) {
+            eventMap.put("approved", ((PublicEvent) event).getApproved());
+            eventMap.put("ownerId", ((PublicEvent) event).getOwner().getUid());
+        } else if (event instanceof PrivateEvent) {
+            eventMap.put("ownerId", ((PrivateEvent) event).getOwner().getUid());
+        } else if (event instanceof RsoEvent && ((RsoEvent) event).getRso() != null) {
+            eventMap.put("rsoId", ((RsoEvent) event).getRso().getRsoId());
+            eventMap.put("rsoName", ((RsoEvent) event).getRso().getRsoName());
+        }
+        
+        return eventMap;
+    }
+
+    // Add comment to event
     @PostMapping("/{eventId}/comments")
     public ResponseEntity<Map<String, Object>> addComment(@PathVariable int eventId, 
                                                         @RequestBody Map<String, Object> commentData) {
@@ -322,6 +567,7 @@ public class EventController {
         }
     }
     
+    // Get comments for event
     @GetMapping("/{eventId}/comments")
     public ResponseEntity<Map<String, Object>> getComments(@PathVariable int eventId) {
         try {

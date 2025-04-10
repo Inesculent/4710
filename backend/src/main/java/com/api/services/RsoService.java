@@ -17,4 +17,5 @@ public interface RsoService {
     void deleteRso(Integer id);
     Rso addMember(Integer rsoId, User user);
     Rso removeMember(Integer rsoId, Integer userId);
+    List<Rso> getRsosByUserId(Integer userId);
 } 

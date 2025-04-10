@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Container, Typography, Box, Grid, Card, CardContent, CardActions, 
   Button, Chip, Divider, TextField, Dialog, DialogTitle, 
-  DialogContent, DialogActions, Alert, CircularProgress
+  DialogContent, DialogActions, Alert, CircularProgress, FormControl, InputLabel, Select, MenuItem, FormHelperText
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
@@ -15,15 +15,16 @@ function RSOs() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [joinError, setJoinError] = useState('');
   const [error, setError] = useState('');
-
+  const [universities, setUniversities] = useState([]);
   // Form state for creating a new RSO
   const [newRSO, setNewRSO] = useState({
     name: '',
     description: '',
-    universityId: currentUser?.universityId || 1, // Default to first university if not set
+    userId: currentUser.userId,
     adminEmail: currentUser?.email || '',
     emailDomain: '@knights.ucf.edu', // Example domain
-    members: ['', '', '', ''] // Need at least 4 other members
+    members: ['', '', '', ''], // Need at least 4 other members
+    universityId: currentUser?.universityId || ''
   });
 
   // Form validation
@@ -34,14 +35,20 @@ function RSOs() {
     const fetchRSOs = async () => {
       try {
         setLoading(true);
+        setError('');
         let fetchedRSOs;
         
         if (currentUser) {
-          // Fetch RSOs for user's university
-          fetchedRSOs = await api.rsos.getByUniversity(currentUser.universityId);
+          // Fetch RSOs for user's university if we have a user ID
+          console.log('Fetching RSOs for user:', currentUser.userId);
+          fetchedRSOs = await api.rsos.getUserRsos(currentUser.userId);
+          console.log('Fetched RSOs:', fetchedRSOs);
+          fetchedRSOs = fetchedRSOs.rsos;
         } else {
           // If not logged in, just get all RSOs
+          console.log('Fetching all RSOs (not logged in)');
           fetchedRSOs = await api.rsos.getAll();
+          fetchedRSOs = fetchedRSOs.rsos;
         }
         
         setRSOs(fetchedRSOs || []);
@@ -56,6 +63,15 @@ function RSOs() {
     
     fetchRSOs();
   }, [currentUser]);
+
+  // Fetch universities
+  useEffect(() => {
+    const fetchUniversities = async () => {
+      const response = await api.universities.getAll();
+      setUniversities(response.universities);
+    };
+    fetchUniversities();
+  }, []);
 
   // Handle input changes for new RSO form
   const handleChange = (e) => {
@@ -106,6 +122,11 @@ function RSOs() {
       newErrors.description = 'Description is required';
     }
     
+    // Check university selection
+    if (!newRSO.universityId) {
+      newErrors.universityId = 'University selection is required';
+    }
+    
     // Check all members have valid university emails
     const emailRegex = new RegExp(`^[A-Z0-9._%+-]+${newRSO.emailDomain.replace('.', '\\.')}$`, 'i');
     
@@ -128,31 +149,55 @@ function RSOs() {
         setLoading(true);
         
         const rsoData = {
-          name: newRSO.name,
+          rsoName: newRSO.name,
           description: newRSO.description,
-          universityId: newRSO.universityId,
+          userId: currentUser.userId,
           adminEmail: newRSO.adminEmail || currentUser.email,
           emailDomain: newRSO.emailDomain,
-          members: newRSO.members
+          members: newRSO.members.filter(email => email.trim() !== ''),
+          universityId: newRSO.universityId
         };
         
-        await api.rsos.create(rsoData);
+        console.log('Creating RSO with data:', rsoData);
+        const response = await api.rsos.create(rsoData);
+        console.log('RSO creation response:', response);
         
-        // Refresh RSO list
-        const updatedRSOs = await api.rsos.getByUniversity(currentUser.universityId);
-        setRSOs(updatedRSOs);
-        
-        // Reset form and close dialog
-        setNewRSO({
-          name: '',
-          description: '',
-          universityId: currentUser?.universityId || 1,
-          adminEmail: currentUser?.email || '',
-          emailDomain: '@knights.ucf.edu',
-          members: ['', '', '', '']
-        });
-        setCreateDialogOpen(false);
-        setError('');
+        if (response.success) {
+          // Refresh RSO list using a safe approach
+          try {
+            let updatedRSOs;
+            
+            // First try to get RSOs by the university we just used
+            if (newRSO.universityId) {
+              console.log(`Getting RSOs for university ID: ${newRSO.universityId}`);
+              updatedRSOs = await api.rsos.getByUniversity(newRSO.universityId);
+            } 
+            // Fallback to getting user's RSOs
+            else {
+              console.log(`Getting RSOs for user ID: ${currentUser.userId}`);
+              updatedRSOs = await api.rsos.getUserRsos(currentUser.userId);
+            }
+            
+            setRSOs(updatedRSOs.rsos || []);
+          } catch (refreshError) {
+            console.error('Error refreshing RSOs:', refreshError);
+            // Even if refresh fails, we still consider creation successful
+          }
+          
+          // Reset form and close dialog
+          setNewRSO({
+            name: '',
+            description: '',
+            adminEmail: currentUser?.email || '',
+            emailDomain: '@knights.ucf.edu',
+            members: ['', '', '', ''],
+            universityId: currentUser?.universityId || (universities.length > 0 ? universities[0].id : '')
+          });
+          setCreateDialogOpen(false);
+          setError('');
+        } else {
+          setError(response.message || 'Failed to create RSO');
+        }
       } catch (err) {
         console.error('Error creating RSO:', err);
         setError('Failed to create RSO. Please try again later.');
@@ -210,6 +255,18 @@ function RSOs() {
     rso.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Handle opening the create dialog
+  const handleOpenCreateDialog = () => {
+    // Set default university if available
+    if (!newRSO.universityId && universities.length > 0) {
+      setNewRSO(prev => ({
+        ...prev,
+        universityId: currentUser?.universityId || universities[0].id
+      }));
+    }
+    setCreateDialogOpen(true);
+  };
+
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -221,7 +278,7 @@ function RSOs() {
           <Button 
             variant="contained" 
             color="primary"
-            onClick={() => setCreateDialogOpen(true)}
+            onClick={handleOpenCreateDialog}
           >
             Create RSO
           </Button>
@@ -265,7 +322,7 @@ function RSOs() {
         filteredRSOs.length > 0 ? (
           <Grid container spacing={4}>
             {filteredRSOs.map(rso => (
-              <Grid item key={rso.id} xs={12} md={6}>
+              <Grid item key={rso.rsoId} xs={12} md={6}>
                 <Card 
                   sx={{ 
                     height: '100%', 
@@ -279,11 +336,11 @@ function RSOs() {
                   <CardContent sx={{ flexGrow: 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                       <Typography variant="h5" component="h3">
-                        {rso.name}
+                        {rso.rsoName}
                       </Typography>
                       
                       <Chip 
-                        label={`${rso.memberCount || 0} members`} 
+                        label={`${rso.members.length || 0} members`} 
                         color="primary" 
                         variant="outlined" 
                         size="small"
@@ -297,15 +354,11 @@ function RSOs() {
                     </Typography>
                     
                     <Typography variant="body2" color="text.secondary" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                      <strong>University:</strong> {rso.universityName || 'Unknown'}
-                    </Typography>
-                    
-                    <Typography variant="body2" color="text.secondary" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
                       <strong>Administrator:</strong> {rso.adminEmail || 'Unknown'}
                     </Typography>
                     
                     <Typography variant="body2" color="text.secondary" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                      <strong>Status:</strong> {rso.active ? 'Active' : 'Inactive'}
+                      <strong>Status:</strong> {rso.isActive ? 'Active' : 'Inactive'}
                     </Typography>
                   </CardContent>
                   
@@ -429,6 +482,28 @@ function RSOs() {
               sx: { color: 'rgba(255, 255, 255, 0.7)' }
             }}
           />
+          
+          <FormControl 
+            fullWidth 
+            sx={{ mb: 3 }}
+            error={!!errors.universityId}
+          >
+            <InputLabel sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>University</InputLabel>
+            <Select
+              name="universityId"
+              value={newRSO.universityId}
+              onChange={handleChange}
+              sx={{ backgroundColor: '#161a1e', color: 'white' }}
+              label="University"
+            >
+              {universities.map((university) => (
+                <MenuItem key={university.id} value={university.id}>
+                  {university.name}
+                </MenuItem>
+              ))}
+            </Select>
+            {errors.universityId && <FormHelperText>{errors.universityId}</FormHelperText>}
+          </FormControl>
           
           <Typography variant="h6" sx={{ mt: 2, mb: 2 }}>
             Member Emails (minimum 4)

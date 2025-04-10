@@ -72,15 +72,56 @@ public class UniversityController {
             return ResponseEntity.badRequest().body(response);
         }
     }
+
+    // Get all rsos for a user
+    @GetMapping("/rso/user/{userId}")
+    public ResponseEntity<Map<String, Object>> getUserRsos(@PathVariable int userId) {
+        try {
+            System.out.println("Getting RSOs for user: " + userId);
+            List<Rso> rsos = rsoService.getRsosByUserId(userId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("rsos", rsos);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "Error: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
     
     @PostMapping("/rso/create")
     public ResponseEntity<Map<String, Object>> createRso(@RequestBody Map<String, Object> rsoData) {
         try {
             String rsoName = (String) rsoData.get("rsoName");
             String description = (String) rsoData.get("description");
-            int universityId = Integer.parseInt(rsoData.get("universityId").toString());
             String adminEmail = (String) rsoData.get("adminEmail");
             String emailDomain = (String) rsoData.get("emailDomain");
+            
+            // Get userId from request and find the user
+            int userId = rsoData.containsKey("userId") ? 
+                Integer.parseInt(rsoData.get("userId").toString()) : 0;
+                
+            if (userId == 0) {
+                throw new IllegalArgumentException("User ID is required");
+            }
+            
+            // Get user and their university
+            User user = userService.getUserById(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+            
+            // Get university from user based on their role
+            int universityId;
+            if (user.getStudent() != null) {
+                universityId = user.getStudent().getUniversity().getUniversityId();
+            } else if (user.getAdmin() != null) {
+                universityId = user.getAdmin().getUniversity().getUniversityId();
+            } else if (rsoData.containsKey("universityId")) {
+                universityId = Integer.parseInt(rsoData.get("universityId").toString());
+            } else {
+                throw new IllegalArgumentException("User is not associated with a university");
+            }
             
             // Verify university exists
             University university = universityService.getUniversityById(universityId)

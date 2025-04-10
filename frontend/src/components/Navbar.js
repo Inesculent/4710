@@ -22,7 +22,8 @@ function Navbar() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [universityId, setUniversityId] = useState(1);
+  const [universityId, setUniversityId] = useState('');
+  const [registrationRole, setRegistrationRole] = useState('student'); // Renamed to avoid conflict
   const [selectedRole, setSelectedRole] = useState(userRole);
   const [error, setError] = useState('');
   
@@ -31,8 +32,12 @@ function Navbar() {
     const fetchUniversities = async () => {
       try {
         const response = await api.universities.getAll();
-        console.log(response);
-        setUniversities(response.universities);
+        setUniversities(response.universities || []);
+        
+        // Set first university as default if available
+        if (response.universities?.length > 0 && !universityId) {
+          setUniversityId(response.universities[0].id);
+        }
       } catch (error) {
         console.error('Error fetching universities:', error);
       }
@@ -100,17 +105,29 @@ function Navbar() {
     setError('');
     
     try {
+      // Check if universityId is valid
+      if (!universityId) {
+        setError('Please select a university');
+        return;
+      }
+
       const userData = {
         username: displayName,
         password: password,
         email: email,
-        role: 'student', // Default role for new users
-        universityId: universityId
+        role: registrationRole,
+        universityId: parseInt(universityId)
       };
-      await register(userData);
+      
+      console.log('Registering user with data:', userData);
+      
+      const response = await register(userData);
+      console.log('Registration response:', response);
+      
       handleRegisterDialogClose();
     } catch (error) {
-      setError('Failed to register: ' + error.message);
+      console.error('Registration error details:', error);
+      setError('Failed to register: ' + (error.response?.data?.message || error.message));
     }
   };
 
@@ -139,7 +156,7 @@ function Navbar() {
     navigate('/rsos');
   };
   
-  console.log(universities);
+  // console.log(universities);
 
   return (
     <Box sx={{ flexGrow: 1 }}>
@@ -175,11 +192,6 @@ function Navbar() {
                 <Button color="inherit" onClick={() => navigate('/rsos')}>
                   RSOs
                 </Button>
-                {(userRole === 'admin' || userRole === 'superadmin') && (
-                  <Button color="inherit" onClick={() => navigate('/create-event')}>
-                    Create Event
-                  </Button>
-                )}
                 {userRole === 'superadmin' && (
                   <Button color="inherit" onClick={() => navigate('/manage-universities')}>
                     Universities
@@ -349,16 +361,32 @@ function Navbar() {
               </InputLabel>
               <Select
                 labelId="university-label"
-                value={universityId}
+                value={universityId || ''}
                 label="University"
                 onChange={(e) => setUniversityId(e.target.value)}
                 sx={{ backgroundColor: '#161a1e', color: 'white' }}
               >
-                {universities?.map((university) => (
-                  <MenuItem key={university.id} value={university.name}>
+                {universities && universities.map((university) => (
+                  <MenuItem key={university.id} value={university.id}>
                     {university.name}
                   </MenuItem>
                 ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth margin="normal">
+              <InputLabel id="role-label" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+                Role
+              </InputLabel>
+              <Select
+                labelId="role-label"
+                value={registrationRole}
+                label="Role"
+                onChange={(e) => setRegistrationRole(e.target.value)}
+                sx={{ backgroundColor: '#161a1e', color: 'white' }}
+              >
+                <MenuItem value="student">Student</MenuItem>
+                <MenuItem value="admin">Admin</MenuItem>
+                <MenuItem value="superadmin">Super Admin</MenuItem>
               </Select>
             </FormControl>
           </Box>

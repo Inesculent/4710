@@ -13,6 +13,8 @@ public class Location {
     private Double longitude;
     
     private Double latitude;
+
+    private String description;
     
     @OneToMany(mappedBy = "location")
     private List<Event> events;
@@ -48,5 +50,13 @@ public class Location {
     
     public void setEvents(List<Event> events) {
         this.events = events;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+    
+    public void setDescription(String description) {
+        this.description = description;
     }
 } 

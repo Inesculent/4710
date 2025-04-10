@@ -24,14 +24,81 @@ public class UserController {
         this.userService = userService;
     }
 
+    // Get user profile
+    @GetMapping("/profile/{userId}")
+    public ResponseEntity<Map<String, Object>> getUserProfile(@PathVariable int userId) {
+        try {
+            User user = userService.getUserById(userId).orElseThrow(() -> new IllegalArgumentException("User not found"));
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("user", user);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "Error: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
     @PostMapping("/create")
     public ResponseEntity<Map<String, Object>> createUser(@RequestBody Map<String, Object> userData) {
         try {
+            // Log received data
+            System.out.println("Creating user with data: " + userData);
+            
             String name = (String) userData.get("username");
             String password = (String) userData.get("password");
             String email = (String) userData.get("email");
             String role = (String) userData.get("role");
-            int universityId = Integer.parseInt(userData.get("universityId").toString());
+            
+            // Validate required fields
+            if (name == null || password == null || email == null || role == null) {
+                String missing = "";
+                if (name == null) missing += "username, ";
+                if (password == null) missing += "password, ";
+                if (email == null) missing += "email, ";
+                if (role == null) missing += "role, ";
+                
+                String message = "Missing required fields: " + missing.substring(0, missing.length() - 2);
+                System.err.println(message);
+                
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", message);
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+            // Parse universityId with error handling
+            int universityId;
+            try {
+                Object universityIdObj = userData.get("universityId");
+                if (universityIdObj == null) {
+                    String message = "University ID is required";
+                    System.err.println(message);
+                    
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("success", false);
+                    response.put("message", message);
+                    return ResponseEntity.badRequest().body(response);
+                }
+                
+                if (universityIdObj instanceof Integer) {
+                    universityId = (Integer) universityIdObj;
+                } else {
+                    universityId = Integer.parseInt(universityIdObj.toString());
+                }
+            } catch (NumberFormatException e) {
+                String message = "Invalid university ID format: " + userData.get("universityId");
+                System.err.println(message);
+                
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", message);
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+            System.out.println("Parsed university ID: " + universityId);
             
             // Create user object
             User user = new User();
@@ -40,24 +107,43 @@ public class UserController {
             user.setEmail(email);
             
             // Create user
+            System.out.println("Creating base user record");
             User createdUser = userService.createUser(user);
+            System.out.println("Created user with ID: " + createdUser.getUid());
             
-            // Add role-specific record based on the role
-            if ("student".equalsIgnoreCase(role)) {
-                Student student = new Student();
-                student.setUser(createdUser);
-                // Set university - this would need UniversityService to be injected
-                // student.setUniversity(universityService.getUniversityById(universityId).get());
-                // studentRepository.save(student);
-            } else if ("admin".equalsIgnoreCase(role)) {
-                Admin admin = new Admin();
-                admin.setUser(createdUser);
-                // admin.setUniversity(universityService.getUniversityById(universityId).get());
-                // adminRepository.save(admin);
-            } else if ("superadmin".equalsIgnoreCase(role)) {
-                SuperAdmin superAdmin = new SuperAdmin();
-                superAdmin.setUser(createdUser);
-                // superAdminRepository.save(superAdmin);
+            try {
+                // Add role-specific record based on the role
+                System.out.println("Creating role: " + role);
+                
+                if ("student".equalsIgnoreCase(role)) {
+                    userService.createStudentRole(createdUser.getUid(), universityId);
+                    System.out.println("Created student role for user: " + createdUser.getUid());
+                } else if ("admin".equalsIgnoreCase(role)) {
+                    userService.createAdminRole(createdUser.getUid(), universityId);
+                    System.out.println("Created admin role for user: " + createdUser.getUid());
+                } else if ("superadmin".equalsIgnoreCase(role)) {
+                    userService.createSuperAdminRole(createdUser.getUid());
+                    System.out.println("Created superadmin role for user: " + createdUser.getUid());
+                } else {
+                    String message = "Invalid role: " + role;
+                    System.err.println(message);
+                    
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("success", false);
+                    response.put("message", message);
+                    return ResponseEntity.badRequest().body(response);
+                }
+            } catch (Exception e) {
+                System.err.println("Error creating role, deleting user: " + e.getMessage());
+                
+                // If role creation fails, delete the user
+                try {
+                    userService.deleteUser(createdUser.getUid());
+                } catch (Exception deleteEx) {
+                    System.err.println("Error deleting user after role creation failed: " + deleteEx.getMessage());
+                }
+                
+                throw e;
             }
             
             Map<String, Object> response = new HashMap<>();
@@ -66,6 +152,7 @@ public class UserController {
             response.put("message", "User created successfully");
             return ResponseEntity.ok(response);
         } catch (Exception e) {
+            e.printStackTrace(); // Print full stack trace for debugging
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", "Error: " + e.getMessage());

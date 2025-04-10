@@ -1,64 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Container, Typography, Box, Grid, Card, CardContent, CardMedia,
   CardActions, Button, TextField, Dialog, DialogTitle, DialogContent,
-  DialogActions, Paper, Divider, IconButton, Alert
+  DialogActions, Paper, Divider, IconButton, Alert, CircularProgress
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import { useAuth } from '../contexts/AuthContext';
-
-// Mock data for universities
-const mockUniversities = [
-  {
-    id: 1,
-    name: 'University of Central Florida',
-    location: 'Orlando, FL',
-    description: 'UCF is a public research university with the largest university campus by enrollment in Florida.',
-    studentCount: 70000,
-    pictures: [
-      'https://images.unsplash.com/photo-1587068415117-b49abac631a7?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80'
-    ]
-  },
-  {
-    id: 2,
-    name: 'Florida State University',
-    location: 'Tallahassee, FL',
-    description: 'FSU is a public research university offering bachelor\'s, master\'s, and doctoral degrees.',
-    studentCount: 45000,
-    pictures: [
-      'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80'
-    ]
-  },
-  {
-    id: 3,
-    name: 'University of Florida',
-    location: 'Gainesville, FL',
-    description: 'UF is a public land-grant research university, ranked among the top 5 public universities in the United States.',
-    studentCount: 55000,
-    pictures: [
-      'https://images.unsplash.com/photo-1592564630984-7410f94db184?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80'
-    ]
-  }
-];
+import api from '../services/api';
 
 function ManageUniversities() {
   const { currentUser, userRole } = useAuth();
-  const [universities, setUniversities] = useState(mockUniversities);
+  const [universities, setUniversities] = useState([]);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [confirmDeleteDialog, setConfirmDeleteDialog] = useState(false);
   const [selectedUniversity, setSelectedUniversity] = useState(null);
   const [formError, setFormError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   // Form state for creating/editing a university
   const [universityData, setUniversityData] = useState({
     name: '',
     location: '',
     description: '',
-    studentCount: '',
+    numStudents: '',
     pictureUrl: ''
   });
+
+  // Fetch universities
+  useEffect(() => {
+    const fetchUniversities = async () => {
+      try {
+        setLoading(true);
+        const response = await api.universities.getAll();
+        if (response.success) {
+          setUniversities(response.universities || []);
+        } else {
+          setFormError('Failed to load universities');
+        }
+      } catch (error) {
+        console.error('Error fetching universities:', error);
+        setFormError('Failed to load universities');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUniversities();
+  }, []);
 
   // Reset form data
   const resetFormData = () => {
@@ -66,9 +57,10 @@ function ManageUniversities() {
       name: '',
       location: '',
       description: '',
-      studentCount: '',
+      numStudents: '',
       pictureUrl: ''
     });
+    setFormError('');
   };
 
   // Handle opening the edit dialog
@@ -76,10 +68,10 @@ function ManageUniversities() {
     setSelectedUniversity(university);
     setUniversityData({
       name: university.name,
-      location: university.location,
+      location: university.location || '',
       description: university.description,
-      studentCount: university.studentCount.toString(),
-      pictureUrl: university.pictures[0]
+      numStudents: university.students.toString(),
+      pictureUrl: university.pictureUrl || ''
     });
     setEditDialogOpen(true);
   };
@@ -102,18 +94,18 @@ function ManageUniversities() {
   // Validate university form
   const validateUniversityForm = () => {
     // Check for required fields
-    if (!universityData.name || !universityData.location || !universityData.description) {
+    if (!universityData.name || !universityData.description) {
       setFormError('Please fill in all required fields');
       return false;
     }
 
     // Validate student count is a positive number
-    if (isNaN(universityData.studentCount) || parseInt(universityData.studentCount) <= 0) {
+    if (isNaN(universityData.numStudents) || parseInt(universityData.numStudents) <= 0) {
       setFormError('Student count must be a positive number');
       return false;
     }
 
-    // Validate picture URL (basic check)
+    // Validate picture URL if provided
     if (universityData.pictureUrl && !universityData.pictureUrl.startsWith('http')) {
       setFormError('Please enter a valid URL for the picture');
       return false;
@@ -123,50 +115,100 @@ function ManageUniversities() {
     return true;
   };
 
-  // Handle creating a new university
-  const handleCreateUniversity = () => {
-    if (validateUniversityForm()) {
-      const newUniversity = {
-        id: universities.length + 1,
-        name: universityData.name,
-        location: universityData.location,
-        description: universityData.description,
-        studentCount: parseInt(universityData.studentCount),
-        pictures: [universityData.pictureUrl || 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-1.2.1&auto=format&fit=crop&w=1352&q=80']
-      };
+  // Display temporary success message
+  const showSuccessMessage = (message) => {
+    setSuccessMessage(message);
+    setTimeout(() => setSuccessMessage(''), 5000);
+  };
 
-      setUniversities(prev => [...prev, newUniversity]);
-      resetFormData();
-      setCreateDialogOpen(false);
+  // Handle creating a new university
+  const handleCreateUniversity = async () => {
+    if (!validateUniversityForm()) return;
+    
+    setActionLoading(true);
+    try {
+      const createData = {
+        userId: currentUser.userId,
+        name: universityData.name,
+        description: universityData.description,
+        numStudents: parseInt(universityData.numStudents)
+      };
+      
+      const response = await api.universities.create(createData);
+      
+      if (response.success) {
+        // Reload universities to get the new data
+        const updatedUniversities = await api.universities.getAll();
+        setUniversities(updatedUniversities.universities || []);
+        
+        resetFormData();
+        setCreateDialogOpen(false);
+        showSuccessMessage('University created successfully');
+      } else {
+        setFormError(response.message || 'Failed to create university');
+      }
+    } catch (error) {
+      console.error('Error creating university:', error);
+      setFormError(error.response?.data?.message || 'Failed to create university');
+    } finally {
+      setActionLoading(false);
     }
   };
 
   // Handle updating a university
-  const handleUpdateUniversity = () => {
-    if (validateUniversityForm() && selectedUniversity) {
-      setUniversities(prev => prev.map(uni => 
-        uni.id === selectedUniversity.id 
-          ? {
-              ...uni,
-              name: universityData.name,
-              location: universityData.location,
-              description: universityData.description,
-              studentCount: parseInt(universityData.studentCount),
-              pictures: [universityData.pictureUrl || uni.pictures[0]]
-            }
-          : uni
-      ));
+  const handleUpdateUniversity = async () => {
+    if (!validateUniversityForm() || !selectedUniversity) return;
+    
+    setActionLoading(true);
+    try {
+      const updateData = {
+        name: universityData.name,
+        description: universityData.description,
+        numStudents: parseInt(universityData.numStudents)
+      };
       
-      resetFormData();
-      setEditDialogOpen(false);
+      const response = await api.universities.update(selectedUniversity.id, updateData);
+      
+      if (response.success) {
+        // Reload universities to get the updated data
+        const updatedUniversities = await api.universities.getAll();
+        setUniversities(updatedUniversities.universities || []);
+        
+        resetFormData();
+        setEditDialogOpen(false);
+        showSuccessMessage('University updated successfully');
+      } else {
+        setFormError(response.message || 'Failed to update university');
+      }
+    } catch (error) {
+      console.error('Error updating university:', error);
+      setFormError(error.response?.data?.message || 'Failed to update university');
+    } finally {
+      setActionLoading(false);
     }
   };
 
   // Handle deleting a university
-  const handleDeleteUniversity = () => {
-    if (selectedUniversity) {
-      setUniversities(prev => prev.filter(uni => uni.id !== selectedUniversity.id));
-      setConfirmDeleteDialog(false);
+  const handleDeleteUniversity = async () => {
+    if (!selectedUniversity) return;
+    
+    setActionLoading(true);
+    try {
+      const response = await api.universities.delete(selectedUniversity.id);
+      
+      if (response.success) {
+        // Remove the university from local state
+        setUniversities(prev => prev.filter(uni => uni.id !== selectedUniversity.id));
+        setConfirmDeleteDialog(false);
+        showSuccessMessage('University deleted successfully');
+      } else {
+        setFormError(response.message || 'Failed to delete university');
+      }
+    } catch (error) {
+      console.error('Error deleting university:', error);
+      setFormError(error.response?.data?.message || 'Failed to delete university');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -186,8 +228,23 @@ function ManageUniversities() {
     );
   }
 
+  if (loading) {
+    return (
+      <Container maxWidth="md" sx={{ mt: 8, mb: 4, textAlign: 'center' }}>
+        <CircularProgress />
+        <Typography sx={{ mt: 2, color: 'white' }}>Loading universities...</Typography>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      {successMessage && (
+        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccessMessage('')}>
+          {successMessage}
+        </Alert>
+      )}
+      
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h2" gutterBottom color="white">
           Manage Universities
@@ -222,7 +279,7 @@ function ManageUniversities() {
               <CardMedia
                 component="img"
                 height="200"
-                image={university.pictures[0]}
+                image={university.pictureUrl || "https://source.unsplash.com/random?university"}
                 alt={university.name}
               />
               <CardContent sx={{ flexGrow: 1 }}>
@@ -252,11 +309,11 @@ function ManageUniversities() {
                 <Divider sx={{ mb: 2, backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
                 
                 <Typography variant="body2" color="text.secondary" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
-                  <strong>Location:</strong> {university.location}
+                  <strong>Location:</strong> {university.location || 'Not specified'}
                 </Typography>
                 
                 <Typography variant="body2" color="text.secondary" sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1 }}>
-                  <strong>Students:</strong> {university.studentCount.toLocaleString()}
+                  <strong>Students:</strong> {university.students.toLocaleString()}
                 </Typography>
                 
                 <Typography variant="body1" sx={{ mt: 2 }}>
@@ -267,13 +324,23 @@ function ManageUniversities() {
                 <Button size="small" color="primary">
                   View Details
                 </Button>
-                <Button size="small" color="primary">
+                <Button size="small" color="primary" href={`/events?university=${university.id}`}>
                   View Events
                 </Button>
               </CardActions>
             </Card>
           </Grid>
         ))}
+        
+        {universities.length === 0 && (
+          <Grid item xs={12}>
+            <Paper sx={{ p: 4, backgroundColor: '#161a1e', color: 'white', borderRadius: 2, textAlign: 'center' }}>
+              <Typography variant="h6">
+                No universities found. Create one now!
+              </Typography>
+            </Paper>
+          </Grid>
+        )}
       </Grid>
       
       {/* Create University Dialog */}
@@ -344,9 +411,9 @@ function ManageUniversities() {
           <TextField
             fullWidth
             label="Number of Students"
-            name="studentCount"
+            name="numStudents"
             type="number"
-            value={universityData.studentCount}
+            value={universityData.numStudents}
             onChange={handleChange}
             sx={{ mb: 3 }}
             InputProps={{
@@ -375,8 +442,13 @@ function ManageUniversities() {
           <Button onClick={() => setCreateDialogOpen(false)} color="primary">
             Cancel
           </Button>
-          <Button onClick={handleCreateUniversity} color="primary" variant="contained">
-            Create University
+          <Button 
+            onClick={handleCreateUniversity} 
+            color="primary" 
+            variant="contained"
+            disabled={actionLoading}
+          >
+            {actionLoading ? <CircularProgress size={24} /> : 'Create University'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -449,9 +521,9 @@ function ManageUniversities() {
           <TextField
             fullWidth
             label="Number of Students"
-            name="studentCount"
+            name="numStudents"
             type="number"
-            value={universityData.studentCount}
+            value={universityData.numStudents}
             onChange={handleChange}
             sx={{ mb: 3 }}
             InputProps={{
@@ -480,8 +552,13 @@ function ManageUniversities() {
           <Button onClick={() => setEditDialogOpen(false)} color="primary">
             Cancel
           </Button>
-          <Button onClick={handleUpdateUniversity} color="primary" variant="contained">
-            Update University
+          <Button 
+            onClick={handleUpdateUniversity} 
+            color="primary" 
+            variant="contained"
+            disabled={actionLoading}
+          >
+            {actionLoading ? <CircularProgress size={24} /> : 'Update University'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -504,8 +581,13 @@ function ManageUniversities() {
           <Button onClick={() => setConfirmDeleteDialog(false)} color="primary">
             Cancel
           </Button>
-          <Button onClick={handleDeleteUniversity} color="error" variant="contained">
-            Delete
+          <Button 
+            onClick={handleDeleteUniversity} 
+            color="error" 
+            variant="contained"
+            disabled={actionLoading}
+          >
+            {actionLoading ? <CircularProgress size={24} /> : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>

@@ -13,4 +13,9 @@ public interface UserService {
     User updateUser(Integer id, User user);
     void deleteUser(Integer id);
     boolean verifyLogin(String email, String password);
+    
+    // Role-specific methods
+    void createStudentRole(Integer userId, Integer universityId);
+    void createAdminRole(Integer userId, Integer universityId);
+    void createSuperAdminRole(Integer userId);
 } 

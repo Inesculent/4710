@@ -8,6 +8,7 @@ import com.api.services.RsoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -110,5 +111,38 @@ public class RsoServiceImpl implements RsoService {
         }
         
         return rsoRepository.save(rso);
+    }
+
+    @Override
+    public List<Rso> getRsosByUserId(Integer userId) {
+        // Find all RSOs where the user is a member
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+
+        List<Rso> result = new ArrayList<>();
+        
+        // Try to get RSOs by university first
+        if (user.getStudent() != null && user.getStudent().getUniversity() != null) {
+            result.addAll(rsoRepository.findByUniversityId(user.getStudent().getUniversity().getUniversityId()));
+        } else if (user.getAdmin() != null && user.getAdmin().getUniversity() != null) {
+            result.addAll(rsoRepository.findByUniversityId(user.getAdmin().getUniversity().getUniversityId()));
+        }
+        
+        // Also get RSOs where the user is a direct member
+        try {
+            List<Rso> memberRsos = rsoRepository.findByUserId(userId);
+            if (memberRsos != null && !memberRsos.isEmpty()) {
+                for (Rso rso : memberRsos) {
+                    if (!result.contains(rso)) {
+                        result.add(rso);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Log the error but continue - we'll return what we have from university RSOs
+            System.err.println("Error getting RSOs by membership: " + e.getMessage());
+        }
+
+        return result;
     }
 } 

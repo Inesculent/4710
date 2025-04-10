@@ -18,6 +18,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import RSVPComponent from '../components/RSVPComponent';
+import EventMap from '../components/EventMap';
 
 function EventDetails() {
   const { currentUser, userRole } = useAuth();
@@ -57,10 +59,10 @@ function EventDetails() {
         
         setEvent(eventData);
         
-        // Fetch location details if we have a location name
-        if (eventData.location_name) {
+        // Fetch location details if we have a locationId
+        if (eventData.locationId) {
           try {
-            const locationData = await api.locations.getByName(eventData.location_name);
+            const locationData = await api.locations.getById(eventData.locationId);
             setLocation(locationData);
           } catch (err) {
             console.error("Error fetching location:", err);
@@ -119,7 +121,7 @@ function EventDetails() {
     try {
       // In a real app, we might have a separate rating endpoint
       // For now, we'll add a comment with just a rating
-      await api.comments.create({
+      await api.comments.add({
         event_id: parseInt(eventId),
         user_id: currentUser.uid,
         text: '',
@@ -155,7 +157,7 @@ function EventDetails() {
     
     try {
       // Create new comment
-      await api.comments.create({
+      await api.comments.add({
         event_id: parseInt(eventId),
         user_id: currentUser.uid,
         text: commentText,
@@ -252,22 +254,6 @@ function EventDetails() {
     }
   };
   
-  // Join/RSVP to this event
-  const handleJoinEvent = async () => {
-    if (!currentUser) {
-      navigate('/'); // Prompt to log in
-      return;
-    }
-    
-    try {
-      await api.events.joinEvent(parseInt(eventId), currentUser.uid);
-      alert('You have successfully joined this event!');
-    } catch (err) {
-      console.error("Error joining event:", err);
-      setError("Failed to join event. Please try again.");
-    }
-  };
-  
   // Share to social media (mock implementation)
   const handleShare = (platform) => {
     const url = window.location.href;
@@ -329,7 +315,7 @@ function EventDetails() {
           <Grid item xs={12} md={6}>
             <Box 
               component="img"
-              src={event.imageUrl}
+              src={event.imageUrl || "/default-event-image.jpg"}
               alt={event.title}
               sx={{ 
                 width: '100%', 
@@ -349,13 +335,13 @@ function EventDetails() {
             
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <Rating 
-                value={event.averageRating} 
+                value={event.rating || 0} 
                 precision={0.5} 
                 readOnly 
                 sx={{ mr: 1 }}
               />
               <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                ({event.averageRating} / 5)
+                ({event.rating ? event.rating.toFixed(1) : '0'} / 5)
               </Typography>
             </Box>
             
@@ -369,39 +355,32 @@ function EventDetails() {
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <AccessTimeIcon sx={{ mr: 1, color: 'primary.main' }} />
               <Typography variant="body1">
-                {event.time}
+                {event.startTime} - {event.endTime}
               </Typography>
             </Box>
             
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <LocationOnIcon sx={{ mr: 1, color: 'primary.main' }} />
               <Typography variant="body1">
-                {event.location_name}
+                {location ? location.name : (event.locationName || 'Location not specified')}
               </Typography>
             </Box>
             
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <PhoneIcon sx={{ mr: 1, color: 'primary.main' }} />
               <Typography variant="body1">
-                {event.contact_phone}
+                {event.contactPhone || 'N/A'}
               </Typography>
             </Box>
             
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <EmailIcon sx={{ mr: 1, color: 'primary.main' }} />
               <Typography variant="body1">
-                {event.contact_email}
+                {event.contactEmail || 'N/A'}
               </Typography>
             </Box>
             
             <Box sx={{ mt: 3 }}>
-              <Button 
-                variant="contained" 
-                sx={{ mr: 2 }}
-                onClick={handleJoinEvent}
-              >
-                Add to Calendar
-              </Button>
               <IconButton 
                 color="primary" 
                 onClick={() => handleShare('facebook')}
@@ -430,40 +409,26 @@ function EventDetails() {
             </Typography>
           </Grid>
           
-          {/* Map */}
-          {location && (
+          {/* RSVP Component */}
+          {currentUser && (
             <Grid item xs={12}>
+              <Divider sx={{ my: 3, backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
+              <RSVPComponent eventId={parseInt(eventId)} userId={currentUser.uid} showAttendees={true} />
+            </Grid>
+          )}
+          
+          {/* Map */}
+          {event.latitude && event.longitude && (
+            <Grid item xs={12}>
+              <Divider sx={{ my: 3, backgroundColor: 'rgba(255, 255, 255, 0.1)' }} />
               <Typography variant="h5" component="h2" gutterBottom>
                 Location
               </Typography>
               
-              <Box 
-                sx={{ 
-                  height: 300, 
-                  width: '100%', 
-                  backgroundColor: '#1A1A1A', 
-                  display: 'flex', 
-                  flexDirection: 'column',
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  borderRadius: 2,
-                  mb: 3,
-                  p: 2
-                }}
-              >
-                <Typography variant="body1" sx={{ mb: 2 }}>
-                  {location.lname}
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 2, color: 'rgba(255, 255, 255, 0.7)' }}>
-                  {location.address}
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                  Coordinates: {location.latitude}, {location.longitude}
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 4, color: 'rgba(255, 255, 255, 0.5)' }}>
-                  (Map would be displayed here using Google Maps or another mapping API)
-                </Typography>
-              </Box>
+              <EventMap 
+                universityId={event.universityId} 
+                eventType={event.type}
+              />
             </Grid>
           )}
           

@@ -4,6 +4,7 @@ import com.api.models.Event;
 import com.api.models.PrivateEvent;
 import com.api.models.PublicEvent;
 import com.api.models.RsoEvent;
+import com.api.models.University;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -11,6 +12,9 @@ import java.util.Optional;
 
 public interface EventService {
     List<Event> getAllEvents();
+    List<PublicEvent> getAllPublicUserEvents(Integer userId);
+    List<PrivateEvent> getAllPrivateUserEvents(Integer userId);
+    List<RsoEvent> getAllRsoEvents(Integer rsoId);
     Optional<Event> getEventById(Integer id);
     List<Event> getEventsByUniversityId(Integer universityId);
     List<Event> getUpcomingEvents(LocalDate date);
@@ -22,4 +26,6 @@ public interface EventService {
     
     Event updateEvent(Integer id, Event event);
     void deleteEvent(Integer id);
+    
+    List<Event> searchEvents(String query, LocalDate startDate, LocalDate endDate, University university, String eventType);
 } 

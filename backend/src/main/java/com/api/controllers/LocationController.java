@@ -25,13 +25,31 @@ public class LocationController {
     @PostMapping("/create")
     public ResponseEntity<Map<String, Object>> insertLocation(@RequestBody Map<String, Object> locationData) {
         try {
+            // Log incoming location data
+            System.out.println("======= CREATE LOCATION REQUEST PAYLOAD =======");
+            for (Map.Entry<String, Object> entry : locationData.entrySet()) {
+                System.out.println(entry.getKey() + ": " + entry.getValue());
+            }
+            System.out.println("===========================================");
+            
             Double latitude = Double.parseDouble(locationData.get("latitude").toString());
             Double longitude = Double.parseDouble(locationData.get("longitude").toString());
+            
+            // Check for both field names to handle frontend variations
+            String description = null;
+            if (locationData.containsKey("description")) {
+                description = (String) locationData.get("description");
+            } else if (locationData.containsKey("locationDescription")) {
+                description = (String) locationData.get("locationDescription");
+            }
+            
+            System.out.println("Location Description: " + description);
             
             // Create location object
             Location location = new Location();
             location.setLatitude(latitude);
             location.setLongitude(longitude);
+            location.setDescription(description);
             
             // Save location
             Location createdLocation = locationService.createLocation(location);
@@ -103,6 +121,7 @@ public class LocationController {
             locationMap.put("id", location.getLocID());
             locationMap.put("latitude", location.getLatitude());
             locationMap.put("longitude", location.getLongitude());
+            locationMap.put("description", location.getDescription());
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);

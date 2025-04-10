@@ -62,7 +62,8 @@ function Profile() {
         
         // Fetch user profile data if available
         if (currentUser.userId) {
-          const userData = await api.users.getProfile(currentUser.userId);
+          let userData = await api.users.getProfile(currentUser.userId);
+          userData = userData.user;
           if (userData) {
             setProfileData(prevData => ({
               ...prevData,
@@ -76,7 +77,7 @@ function Profile() {
         }
         
         // Fetch user events
-        const events = await api.events.getUserEvents(currentUser.userId);
+        const events = await api.events.getAllUserEvents(currentUser.userId);
         setUserEvents(events || []);
         
         // Fetch user RSOs
@@ -164,6 +165,10 @@ function Profile() {
       setLoading(false);
     }
   };
+
+  console.log(profileData)
+  console.log(userEvents);
+  console.log(userRsos);
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
